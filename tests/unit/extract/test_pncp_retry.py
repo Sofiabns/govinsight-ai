@@ -44,7 +44,10 @@ def test_http_date_retry_after_uses_utc_delta() -> None:
     assert policy.delay_seconds(1, retry_after=retry_at, random_value=0.0, now=now) == 9.0
 
 
-@pytest.mark.parametrize("retry_after", ["invalid", "-4", "Thu, 31 Jul 2025 12:00:00 GMT"])
+@pytest.mark.parametrize(
+    "retry_after",
+    ["invalid", "-4", "Infinity", "Thu, 31 Jul 2025 12:00:00 GMT"],
+)
 def test_invalid_or_elapsed_retry_after_falls_back(retry_after: str) -> None:
     policy = RetryPolicy(base_delay=0.5, max_delay=8.0, jitter_ratio=0.0)
     now = datetime(2025, 8, 1, 12, 0, tzinfo=UTC)
