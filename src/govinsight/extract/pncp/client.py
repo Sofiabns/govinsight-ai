@@ -87,9 +87,7 @@ class PNCPClient:
             raise PNCPResponseError(endpoint=endpoint, reason="expected an object")
         return payload
 
-    def _request_json(
-        self, endpoint: str, *, params: dict[str, str | int] | None = None
-    ) -> Any:
+    def _request_json(self, endpoint: str, *, params: dict[str, str | int] | None = None) -> Any:
         for attempt in range(1, self._retry_policy.max_attempts + 1):
             started_at = time.perf_counter()
             try:
