@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from enum import StrEnum
 from typing import Any, Self
 
@@ -83,3 +83,15 @@ class PNCPPage(BaseModel):
             remaining_pages=0,
             empty=True,
         )
+
+
+class FetchedPNCPPage(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    page: PNCPPage
+    raw_body: str
+    endpoint: str
+    request_params: dict[str, str | int]
+    status_code: int = Field(ge=200, le=299)
+    duration_ms: float = Field(ge=0)
+    collected_at: datetime
