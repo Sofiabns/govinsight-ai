@@ -249,6 +249,133 @@ def test_checkpoint_resumes_incomplete_scope_but_restarts_completed_scope(engine
 
 
 @pytest.mark.integration
+def test_checkpoint_advance_is_monotonic_for_out_of_order_and_equal_pages(engine: Engine) -> None:
+    repository = CheckpointRepository()
+    identity = uuid4().hex
+    params = {"pagina": 1, "tamanhoPagina": 50, "dataInicial": "20250801"}
+    fingerprint = scope_fingerprint(
+        "pncp", RawDataset.PROCUREMENTS.value, f"/checkpoint-monotonic/{identity}", params
+    )
+    pipeline_name = f"repo-checkpoint-monotonic-{identity}"
+
+    try:
+        with engine.begin() as connection:
+            repository.advance(
+                connection,
+                scope_fingerprint=fingerprint,
+                pipeline_name=pipeline_name,
+                dataset=RawDataset.PROCUREMENTS,
+                mode="publicacao",
+                scope_params=params,
+                last_successful_page=5,
+                completed=False,
+            )
+            repository.advance(
+                connection,
+                scope_fingerprint=fingerprint,
+                pipeline_name=pipeline_name,
+                dataset=RawDataset.PROCUREMENTS,
+                mode="publicacao",
+                scope_params=params,
+                last_successful_page=4,
+                completed=True,
+            )
+            repository.advance(
+                connection,
+                scope_fingerprint=fingerprint,
+                pipeline_name=pipeline_name,
+                dataset=RawDataset.PROCUREMENTS,
+                mode="publicacao",
+                scope_params=params,
+                last_successful_page=5,
+                completed=True,
+            )
+            repository.advance(
+                connection,
+                scope_fingerprint=fingerprint,
+                pipeline_name=pipeline_name,
+                dataset=RawDataset.PROCUREMENTS,
+                mode="publicacao",
+                scope_params=params,
+                last_successful_page=5,
+                completed=False,
+            )
+
+        with engine.connect() as connection:
+            checkpoint = (
+                connection.execute(
+                    sa.select(extraction_checkpoint).where(
+                        extraction_checkpoint.c.scope_fingerprint == fingerprint
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            restart_page = repository.next_page(connection, fingerprint, requested_page=2)
+
+        assert checkpoint["last_successful_page"] == 5
+        assert checkpoint["completed"] is True
+        assert restart_page == 2
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                extraction_checkpoint.delete().where(
+                    extraction_checkpoint.c.scope_fingerprint == fingerprint
+                )
+            )
+
+
+@pytest.mark.integration
+def test_concurrent_checkpoint_updates_keep_highest_progress(engine: Engine) -> None:
+    identity = uuid4().hex
+    params = {"pagina": 1, "tamanhoPagina": 50, "dataInicial": "20250801"}
+    fingerprint = scope_fingerprint(
+        "pncp", RawDataset.PROCUREMENTS.value, f"/checkpoint-concurrent/{identity}", params
+    )
+    pipeline_name = f"repo-checkpoint-concurrent-{identity}"
+    barrier = Barrier(2)
+
+    def advance(page: int, completed: bool) -> None:
+        with engine.begin() as connection:
+            barrier.wait(timeout=5)
+            CheckpointRepository().advance(
+                connection,
+                scope_fingerprint=fingerprint,
+                pipeline_name=pipeline_name,
+                dataset=RawDataset.PROCUREMENTS,
+                mode="publicacao",
+                scope_params=params,
+                last_successful_page=page,
+                completed=completed,
+            )
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            list(executor.map(lambda args: advance(*args), [(7, False), (6, True)]))
+
+        with engine.connect() as connection:
+            checkpoint = (
+                connection.execute(
+                    sa.select(extraction_checkpoint).where(
+                        extraction_checkpoint.c.scope_fingerprint == fingerprint
+                    )
+                )
+                .mappings()
+                .one()
+            )
+
+        assert checkpoint["last_successful_page"] == 7
+        assert checkpoint["completed"] is False
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                extraction_checkpoint.delete().where(
+                    extraction_checkpoint.c.scope_fingerprint == fingerprint
+                )
+            )
+
+
+@pytest.mark.integration
 def test_concurrent_duplicate_raw_inserts_create_exactly_one_row(engine: Engine) -> None:
     identity = uuid4().hex
     pipeline_prefix = f"repo-concurrent-{identity}"

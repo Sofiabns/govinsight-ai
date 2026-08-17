@@ -34,6 +34,13 @@ CHECKPOINT_CHECKS = {
     "ck_extraction_checkpoint_mode",
     "ck_extraction_checkpoint_scope_fingerprint",
 }
+RAW_UNIQUE_COLUMNS = [
+    "source",
+    "dataset",
+    "endpoint",
+    "request_fingerprint",
+    "body_sha256",
+]
 
 
 @pytest.mark.integration
@@ -65,17 +72,23 @@ def test_raw_migration_creates_constraints_and_downgrades_cleanly(
             "etl_watermark",
         }
 
-        raw_unique_names = {
-            constraint["name"]
+        raw_unique_constraints = {
+            constraint["name"]: constraint
             for constraint in inspector.get_unique_constraints("raw_api_response", schema="bronze")
         }
-        assert "uq_raw_response_identity_body" in raw_unique_names
+        assert raw_unique_constraints["uq_raw_response_identity_body"]["column_names"] == (
+            RAW_UNIQUE_COLUMNS
+        )
 
-        raw_foreign_key_names = {
-            constraint["name"]
+        raw_foreign_keys = {
+            constraint["name"]: constraint
             for constraint in inspector.get_foreign_keys("raw_api_response", schema="bronze")
         }
-        assert "fk_raw_response_etl_run" in raw_foreign_key_names
+        raw_run_fk = raw_foreign_keys["fk_raw_response_etl_run"]
+        assert raw_run_fk["constrained_columns"] == ["etl_run_id"]
+        assert raw_run_fk["referred_schema"] == "control"
+        assert raw_run_fk["referred_table"] == "etl_run"
+        assert raw_run_fk["referred_columns"] == ["id"]
 
         raw_check_names = {
             constraint["name"]
@@ -96,6 +109,12 @@ def test_raw_migration_creates_constraints_and_downgrades_cleanly(
             )
         }
         assert checkpoint_check_names >= CHECKPOINT_CHECKS
+
+        watermark_check_names = {
+            constraint["name"]
+            for constraint in inspector.get_check_constraints("etl_watermark", schema="control")
+        }
+        assert watermark_check_names >= {"ck_etl_watermark_dataset"}
 
         raw_index_names = {
             index["name"] for index in inspector.get_indexes("raw_api_response", schema="bronze")

@@ -9,19 +9,20 @@ Data: 2026-08-17
 Branch: feat/phase-3-raw-layer-implementation
 Arquivos criados: 16
 Arquivos alterados: 5
-Testes unitários executados: 85
-Testes unitários aprovados: 85
-Testes de integração executados: 17
-Testes de integração aprovados: 16
+Testes unitários executados: 86
+Testes unitários aprovados: 86
+Testes de integração distintos executados: 21
+Testes de integração distintos aprovados: 20
 Testes falharam no gate final: 1
-Cobertura: 81,36%
+Execuções do teste PNCP ao vivo: 3 — 12 tentativas HTTP encerradas por timeout
+Cobertura: 80,41%
 Respostas RAW persistidas no cenário medido: 2
 Registros de negócio contidos nas respostas RAW: 3
 Registros de negócio persistidos em Silver: 0 — transformação fora do escopo da Fase 3
 Respostas RAW duplicadas impedidas: 2
 Registros contabilizados como duplicados no replay: 3
-Problemas encontrados: 4
-Correções realizadas: 3
+Problemas encontrados: 10
+Correções realizadas: 9
 Riscos restantes: indisponibilidade externa do PNCP; reconciliação futura de run RUNNING quando a própria finalização falhar
 Próxima etapa: repetir o gate PNCP; após aprovação da Fase 3, iniciar a Fase 4 — Silver
 --------------------------------
@@ -41,11 +42,11 @@ checkpoint por página e transações atômicas, sem antecipar transformação S
 |---|---|---|
 | Lint | `ruff check .` | PASS — zero erros |
 | Formato | `ruff format --check .` após correção | PASS — 50 arquivos formatados |
-| Testes unitários | pytest sem integração | PASS — 85/85 |
-| Cobertura | branch coverage | PASS — 81,36%, mínimo 80% |
-| PostgreSQL real | conexão, migração, repositórios e serviço | PASS — 16/16 |
+| Testes unitários | pytest sem integração | PASS — 86/86 |
+| Cobertura | branch coverage | PASS — 80,41%, mínimo 80% |
+| PostgreSQL real | conexão, migração, repositórios e serviço | PASS — 20/20 |
 | Migração | `alembic current` | PASS — `20260817_0002 (head)` |
-| PNCP ao vivo | publicação, 01/08/2025, modalidade 6, página de 10 | BLOCKED — 4/4 tentativas terminaram em `ReadTimeout` em cada uma de duas execuções |
+| PNCP ao vivo | publicação, 01/08/2025, modalidade 6, página de 10 | BLOCKED — 12/12 tentativas terminaram em `ReadTimeout` ao longo de três execuções do mesmo teste |
 | Docker build | imagem reconstruída a partir do worktree | PASS |
 | Containers | API e PostgreSQL em portas 58000/55432 | PASS — 2/2 healthy |
 | Endpoint local | `GET http://127.0.0.1:58000/health` | PASS — `ok/reachable` |
@@ -66,15 +67,17 @@ independentes mediu um único insert vencedor e uma única linha Bronze.
 
 | Caso inspecionado | Evidência | Resultado |
 |---|---|---|
-| Corpo HTTP 204 vazio | cliente enriquecido preserva `raw_body == ""` e página solicitada | PASS |
+| Corpo HTTP 204 vazio | cliente força `raw_body == ""` até para resposta 204 não conforme com conteúdo | PASS |
 | Unicode e hash UTF-8 | canonicalização preserva `ação`; SHA-256 usa o texto exato em UTF-8 | PASS |
 | Duplicatas concorrentes | duas transações retornam `[False, True]` e deixam uma linha | PASS |
 | Corpo alterado | mesmo request com hash novo cria versão imutável adicional | PASS |
 | Identidade por tamanho de página | escopo remove apenas `pagina`; mudança de `tamanhoPagina` muda o fingerprint | PASS |
 | Falha parcial e retomada | página 1 permanece; nova execução retoma na página 2 | PASS |
+| Identidade da resposta | endpoint, parâmetros completos e página divergentes falham antes de RAW/checkpoint | PASS |
+| Checkpoint concorrente | maior página prevalece; conclusão só avança e nunca regride na mesma página | PASS |
 | Estado terminal | falhas tratadas viram `FAILED`; sucesso vira `SUCCEEDED` | PASS |
 | Rollback atômico | RAW, contadores e checkpoint revertem juntos | PASS |
-| Vazamento de corpo | somente códigos seguros são persistidos; logs não contêm payload | PASS |
+| Vazamento de corpo | traceback e cadeia dos erros de JSON/envelope não retêm o payload sentinela | PASS |
 | Watermark | cada teste do serviço confirma `control.etl_watermark` vazio | PASS |
 | Logs da API | nenhum `Traceback`, `ERROR` ou `CRITICAL` | PASS |
 
@@ -98,6 +101,7 @@ caso excepcional pertence à orquestração futura.
 - **Correção:** quatro casos unitários cobrem o roteamento dos endpoints de procurement/contract
   em publicação/atualização, sem alterar produção.
 - **Reteste:** 85 testes passaram e a cobertura subiu para 81,36%.
+- **Evidência final após a revisão:** 86 testes passaram e a cobertura ficou em 80,41%.
 
 ### 3. Colisão de portas Docker
 
@@ -108,12 +112,27 @@ caso excepcional pertence à orquestração futura.
 
 ### 4. Timeout no PNCP ao vivo — não corrigido localmente
 
-- **Problema:** o endpoint oficial não respondeu dentro de 30 segundos; o cliente esgotou as
-  quatro tentativas. A execução foi repetida com acesso externo autorizado e apresentou o mesmo
-  resultado.
+- **Problema:** o endpoint oficial não respondeu dentro de 30 segundos; o cliente esgotou quatro
+  tentativas por execução. O mesmo teste foi executado três vezes e totalizou 12 tentativas
+  encerradas por timeout.
 - **Classificação:** dependência externa indisponível, sem evidência de regressão local.
 - **Ação necessária:** repetir o teste ao vivo quando o PNCP responder. O status não pode ser
   promovido para `PASSED` antes desse gate.
+
+### 5–10. Correções da revisão final
+
+- Erros de JSON e envelope agora são traduzidos sem causa ou contexto implícito que retenha o
+  payload; testes sentinela inspecionam o traceback completo e a cadeia da exceção.
+- O serviço valida endpoint, parâmetros completos e página contra a requisição efetivamente
+  emitida antes de construir ou persistir `RawCapture`.
+- O UPSERT PostgreSQL do checkpoint aceita somente página maior ou a transição de conclusão
+  `false` para `true` na mesma página, preservando replay concluído e concorrência fora de ordem.
+- Respostas HTTP 204 sempre produzem corpo RAW vazio, inclusive quando o servidor envia conteúdo
+  não conforme.
+- A inspeção da migração confirma as colunas da unicidade, o alvo completo da chave estrangeira e
+  a restrição de dataset do watermark.
+- A documentação teve espaços finais e evidências obsoletas corrigidos; o status externo continua
+  `BLOCKED`.
 
 ## Riscos restantes
 
