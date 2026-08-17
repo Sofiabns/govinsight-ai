@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "httpx>=0.28,<1",
+  "httpx2>=2.9,<3",
   "pytest>=8.4,<10",
   "pytest-cov>=6.2,<8",
   "ruff>=0.12,<1",
@@ -54,4 +54,3 @@ select = ["E", "F", "I", "B", "UP", "RUF"]
 
 [tool.ruff.format]
 quote-style = "double"
-
