@@ -1,0 +1,62 @@
+{
+  "data": [
+    {
+      "srp": true,
+      "orgaoEntidade": {
+        "cnpj": "13183513000127",
+        "razaoSocial": "FUNDACAO DE SAUDE SAPUCAIA DO SUL",
+        "poderId": "E",
+        "esferaId": "M"
+      },
+      "anoCompra": 2025,
+      "sequencialCompra": 146,
+      "dataInclusao": "2025-08-01T00:00:50",
+      "dataPublicacaoPncp": "2025-08-01T00:00:50",
+      "dataAtualizacao": "2025-09-16T13:50:39",
+      "numeroCompra": "0125",
+      "unidadeOrgao": {
+        "ufNome": "Rio Grande do Sul",
+        "codigoUnidade": "127122",
+        "nomeUnidade": "FUNDAÇÃO DE SAÚDE SAPUCAIA DO SUL",
+        "ufSigla": "RS",
+        "municipioNome": "Sapucaia do Sul",
+        "codigoIbge": "4320008"
+      },
+      "amparoLegal": {
+        "descricao": "pregão: modalidade de licitação obrigatória para aquisição de bens e serviços comuns",
+        "nome": "Lei 14.133/2021, Art. 28, I",
+        "codigo": 1
+      },
+      "dataAberturaProposta": "2025-08-01T08:00:00",
+      "dataEncerramentoProposta": "2025-09-01T09:00:00",
+      "informacaoComplementar": "",
+      "processo": "288419",
+      "objetoCompra": "AQUISIÇÃO DE MATERIAL DE PERMANENTE (ASPIRADOR CIRÚRGICO) PARA A FUNDAÇÃO HOSPITALAR GETÚLIO VARGAS.",
+      "linkSistemaOrigem": "https://pregaobanrisul.com.br/editais/0125_2025/339121",
+      "justificativaPresencial": null,
+      "unidadeSubRogada": null,
+      "orgaoSubRogado": null,
+      "valorTotalHomologado": null,
+      "numeroControlePNCP": "13183513000127-1-000146/2025",
+      "modalidadeId": 6,
+      "emendaParlamentar": null,
+      "dataAtualizacaoGlobal": "2025-09-16T13:50:39",
+      "linkProcessoEletronico": null,
+      "modoDisputaId": 1,
+      "valorTotalEstimado": 0.0,
+      "modalidadeNome": "Pregão - Eletrônico",
+      "modoDisputaNome": "Aberto",
+      "tipoInstrumentoConvocatorioCodigo": 1,
+      "tipoInstrumentoConvocatorioNome": "Edital",
+      "fontesOrcamentarias": [],
+      "situacaoCompraId": 1,
+      "situacaoCompraNome": "Divulgada no PNCP",
+      "usuarioNome": "PROCERGS - CENTRO DE TECNOLOGIA DA INFORMACAO E COMUNICACAO DO ESTADO DO RIO GRANDE DO SUL S.A."
+    }
+  ],
+  "totalRegistros": 1,
+  "totalPaginas": 1,
+  "numeroPagina": 1,
+  "paginasRestantes": 0,
+  "empty": false
+}
