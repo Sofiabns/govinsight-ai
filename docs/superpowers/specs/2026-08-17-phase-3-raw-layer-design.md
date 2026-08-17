@@ -1,7 +1,7 @@
 # Phase 3 — RAW Layer Design
 
-**Status:** approved for implementation  
-**Date:** 2026-08-17  
+**Status:** approved for implementation
+**Date:** 2026-08-17
 **Branch:** `feat/phase-3-raw-layer`
 
 ## Objective

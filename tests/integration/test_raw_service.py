@@ -375,6 +375,71 @@ def test_mismatched_response_page_fails_before_raw_or_checkpoint_persistence(
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("mismatch", ["endpoint", "params"])
+def test_mismatched_response_identity_fails_before_raw_or_checkpoint_persistence(
+    engine: Engine,
+    mismatch: str,
+) -> None:
+    identity = uuid4().hex
+    pipeline_name = f"service-identity-mismatch-{mismatch}-{identity}"
+    query = _procurement_query(identity)
+    scope = _scope(RawDataset.PROCUREMENTS, query)
+
+    class MismatchedMetadataClient(FakePNCPClient):
+        def fetch_procurements(self, requested: ProcurementQuery) -> FetchedPNCPPage:
+            fetched = super().fetch_procurements(requested)
+            if mismatch == "endpoint":
+                return fetched.model_copy(update={"endpoint": "/v1/contratos"})
+            wrong_params = dict(fetched.request_params)
+            wrong_params["tamanhoPagina"] = 50
+            return fetched.model_copy(update={"request_params": wrong_params})
+
+    client = MismatchedMetadataClient(
+        procurements={
+            1: _page([{"id": "wrong-identity"}], number=1, total_pages=1, remaining_pages=0)
+        }
+    )
+
+    try:
+        with pytest.raises(PNCPResponseError) as caught:
+            RawIngestionService(engine, client, pipeline_name=pipeline_name).ingest_procurements(
+                query
+            )
+
+        assert caught.value.endpoint == "/v1/contratacoes/publicacao"
+        assert caught.value.reason == f"unexpected response {mismatch}"
+        assert client.requests == [(RawDataset.PROCUREMENTS, 1)]
+
+        with engine.connect() as connection:
+            failed_run = (
+                connection.execute(
+                    sa.select(etl_run).where(etl_run.c.pipeline_name == pipeline_name)
+                )
+                .mappings()
+                .one()
+            )
+            raw_count = connection.execute(
+                sa.select(sa.func.count())
+                .select_from(raw_api_response.join(etl_run))
+                .where(etl_run.c.pipeline_name == pipeline_name)
+            ).scalar_one()
+            checkpoint_count = connection.execute(
+                sa.select(sa.func.count())
+                .select_from(extraction_checkpoint)
+                .where(extraction_checkpoint.c.scope_fingerprint == scope)
+            ).scalar_one()
+
+        assert failed_run["status"] == RunStatus.FAILED.value
+        assert failed_run["error_code"] == "PNCP_ERROR"
+        assert failed_run["pages_processed"] == 0
+        assert raw_count == 0
+        assert checkpoint_count == 0
+        _assert_watermark_empty(engine)
+    finally:
+        _cleanup(engine, pipeline_name=pipeline_name, scope=scope)
+
+
+@pytest.mark.integration
 def test_contract_ingestion_routes_to_contract_fetch_and_persists_contract_dataset(
     engine: Engine,
 ) -> None:

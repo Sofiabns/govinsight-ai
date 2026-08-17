@@ -133,9 +133,17 @@ class CheckpointRepository:
             "updated_at": datetime.now(UTC),
         }
         statement = postgresql.insert(extraction_checkpoint).values(values)
+        excluded = statement.excluded
+        advances_page = excluded.last_successful_page > extraction_checkpoint.c.last_successful_page
+        completes_same_page = sa.and_(
+            excluded.last_successful_page == extraction_checkpoint.c.last_successful_page,
+            excluded.completed.is_(True),
+            extraction_checkpoint.c.completed.is_(False),
+        )
         connection.execute(
             statement.on_conflict_do_update(
                 index_elements=[extraction_checkpoint.c.scope_fingerprint],
                 set_={key: value for key, value in values.items() if key != "scope_fingerprint"},
+                where=sa.or_(advances_page, completes_same_page),
             )
         )

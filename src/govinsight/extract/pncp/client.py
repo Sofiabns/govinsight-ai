@@ -99,10 +99,13 @@ class PNCPClient:
         if result.payload is _NO_CONTENT:
             page = PNCPPage.empty_page(requested_page)
         else:
+            invalid_envelope = False
             try:
                 page = PNCPPage.model_validate(result.payload)
-            except ValidationError as exc:
-                raise PNCPResponseError(endpoint=endpoint, reason="invalid page envelope") from exc
+            except ValidationError:
+                invalid_envelope = True
+            if invalid_envelope:
+                raise PNCPResponseError(endpoint=endpoint, reason="invalid page envelope")
         return FetchedPNCPPage(
             page=page,
             raw_body=result.raw_body,
@@ -167,15 +170,19 @@ class PNCPClient:
                 )
             if response.status_code == 204:
                 return _PNCPRequestResult(
-                    raw_body=response.text,
+                    raw_body="",
                     payload=_NO_CONTENT,
                     status_code=response.status_code,
                     duration_ms=duration_ms,
                 )
+            malformed_json = False
             try:
                 payload = response.json()
-            except (ValueError, TypeError) as exc:
-                raise PNCPResponseError(endpoint=endpoint, reason="malformed JSON") from exc
+            except (ValueError, TypeError):
+                malformed_json = True
+                payload = None
+            if malformed_json:
+                raise PNCPResponseError(endpoint=endpoint, reason="malformed JSON")
             return _PNCPRequestResult(
                 raw_body=response.text,
                 payload=payload,

@@ -86,37 +86,36 @@ class RawIngestionService:
             while True:
                 page_query = query.model_copy(update={"page": page_number})
                 fetched = fetch_page(page_query)
+                requested_params = page_query.to_params()
+                if fetched.endpoint != endpoint:
+                    raise PNCPResponseError(
+                        endpoint=endpoint,
+                        reason="unexpected response endpoint",
+                    )
+                if fetched.request_params != requested_params:
+                    raise PNCPResponseError(
+                        endpoint=endpoint,
+                        reason="unexpected response params",
+                    )
                 if fetched.page.page_number != page_number:
                     raise PNCPResponseError(
-                        endpoint=fetched.endpoint,
+                        endpoint=endpoint,
                         reason=(
                             f"expected page {page_number}, received page {fetched.page.page_number}"
                         ),
                     )
-                requested_params = page_query.to_params()
                 requested_fingerprint = (
                     initial_request_fingerprint
                     if requested_params == initial_params
                     else request_fingerprint("pncp", dataset.value, endpoint, requested_params)
                 )
-                actual_fingerprint = request_fingerprint(
-                    "pncp",
-                    dataset.value,
-                    fetched.endpoint,
-                    fetched.request_params,
-                )
                 capture = RawCapture(
                     etl_run_id=run_id,
                     source="pncp",
                     dataset=dataset,
-                    endpoint=fetched.endpoint,
-                    request_params=fetched.request_params,
-                    request_fingerprint=(
-                        requested_fingerprint
-                        if fetched.endpoint == endpoint
-                        and fetched.request_params == requested_params
-                        else actual_fingerprint
-                    ),
+                    endpoint=endpoint,
+                    request_params=requested_params,
+                    request_fingerprint=requested_fingerprint,
                     window_start=query.start_date,
                     window_end=query.end_date,
                     page_number=fetched.page.page_number,

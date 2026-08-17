@@ -1,4 +1,5 @@
 import json
+import traceback
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -131,6 +132,15 @@ def test_fetch_procurements_preserves_no_content_response_metadata() -> None:
     assert fetched.page == PNCPPage.empty_page(3)
 
 
+def test_fetch_procurements_forces_noncompliant_no_content_body_to_empty() -> None:
+    sentinel = "SENSITIVE_204_RESPONSE_BODY"
+
+    with client_for(lambda _request: httpx2.Response(204, content=sentinel)) as client:
+        fetched = client.fetch_procurements(procurement_query())
+
+    assert fetched.raw_body == ""
+
+
 @pytest.mark.parametrize(
     ("mode", "expected_path"),
     [
@@ -228,15 +238,44 @@ def test_redirect_is_rejected_without_accessing_its_body() -> None:
 
 
 @pytest.mark.parametrize(
-    "response",
+    ("response", "sentinel"),
     [
-        httpx2.Response(200, content=b"not-json"),
-        httpx2.Response(200, json={"data": []}),
+        (
+            httpx2.Response(200, content=b"SENSITIVE_MALFORMED_JSON"),
+            "SENSITIVE_MALFORMED_JSON",
+        ),
+        (
+            httpx2.Response(
+                200,
+                json={
+                    "data": "SENSITIVE_INVALID_ENVELOPE",
+                    "totalRegistros": 0,
+                    "totalPaginas": 0,
+                    "numeroPagina": 1,
+                    "paginasRestantes": 0,
+                    "empty": True,
+                },
+            ),
+            "SENSITIVE_INVALID_ENVELOPE",
+        ),
     ],
 )
-def test_invalid_response_is_translated_to_safe_domain_error(response: httpx2.Response) -> None:
-    with client_for(lambda _request: response) as client, pytest.raises(PNCPResponseError):
+def test_invalid_response_is_translated_without_retaining_payload_in_exception_chain(
+    response: httpx2.Response,
+    sentinel: str,
+) -> None:
+    with (
+        client_for(lambda _request: response) as client,
+        pytest.raises(PNCPResponseError) as caught,
+    ):
         client.list_procurements(procurement_query())
+
+    formatted = "".join(
+        traceback.TracebackException.from_exception(caught.value).format(chain=True)
+    )
+    assert sentinel not in formatted
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
 
 
 def test_transient_responses_use_backoff_and_retry_after_before_success() -> None:
