@@ -37,24 +37,24 @@
 - Consumes: approved Fase 0 discovery.
 - Produces: installable package `govinsight`, pytest/Ruff configuration, documented environment contract.
 
-- [ ] **Step 1: Initialize Git on the feature branch**
+- [x] **Step 1: Initialize Git on the feature branch**
 
 Run: `git init -b feat/phase-1-project-setup`
 
 Expected: repository initialized with `feat/phase-1-project-setup` as the unborn branch.
 
-- [ ] **Step 2: Create dependency metadata**
+- [x] **Step 2: Create dependency metadata**
 
 Use these direct runtime dependencies in `pyproject.toml`: `alembic`, `fastapi`, `pydantic-settings`, `psycopg[binary]`, `sqlalchemy`, `structlog`, and `uvicorn[standard]`. Use `pytest`, `pytest-cov`, and `ruff` in the `dev` optional group. Configure setuptools package discovery under `src`, pytest paths/markers, coverage for `govinsight`, and Ruff target `py312`.
 
 `requirements.txt` contains `.` for a non-editable production install;
 `requirements-dev.txt` contains `-e .[dev]` for local development.
 
-- [ ] **Step 3: Create safe environment templates**
+- [x] **Step 3: Create safe environment templates**
 
 `.env.example` defines non-secret local defaults for app environment, log level, PostgreSQL database, application user, password placeholder, host, port, and pool settings. `.gitignore` excludes `.env`, `.venv`, caches, coverage, build outputs, IDE settings, `data/`, and `.worktrees/`.
 
-- [ ] **Step 4: Install the development environment**
+- [x] **Step 4: Install the development environment**
 
 Run:
 
@@ -66,7 +66,7 @@ Run:
 
 Expected: installation exits 0 and `python -c "import govinsight"` exits 0.
 
-- [ ] **Step 5: Commit the foundation**
+- [x] **Step 5: Commit the foundation**
 
 Run:
 
@@ -87,7 +87,7 @@ Expected: one focused root commit.
 - Consumes: environment variables prefixed with `GOVINSIGHT_`.
 - Produces: `Settings`, `get_settings()`, and `Settings.database_url: str`.
 
-- [ ] **Step 1: Write the failing settings tests**
+- [x] **Step 1: Write the failing settings tests**
 
 ```python
 from govinsight.config import Settings
@@ -114,23 +114,23 @@ def test_settings_reject_non_positive_pool_size() -> None:
         Settings(postgres_pool_size=0)
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/unit/test_config.py -v`
 
 Expected: collection fails because `govinsight.config` does not exist.
 
-- [ ] **Step 3: Implement the minimal settings boundary**
+- [x] **Step 3: Implement the minimal settings boundary**
 
 Implement `Settings` with `SettingsConfigDict(env_prefix="GOVINSIGHT_", env_file=".env", extra="ignore")`, `SecretStr` for the password, bounded positive pool fields, and a URL assembled with `sqlalchemy.engine.URL.create(...).render_as_string(hide_password=False)`. Cache `get_settings()` with `functools.lru_cache`.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `pytest tests/unit/test_config.py -v`
 
 Expected: 2 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run: `git add src/govinsight/config.py tests/unit/test_config.py && git commit -m "feat: add typed application settings"`
 
@@ -145,27 +145,27 @@ Run: `git add src/govinsight/config.py tests/unit/test_config.py && git commit -
 - Consumes: `log_level` from `Settings`.
 - Produces: `configure_logging(log_level: str) -> None` and `get_logger(name: str)`.
 
-- [ ] **Step 1: Write the failing behavior test**
+- [x] **Step 1: Write the failing behavior test**
 
 Use `capsys`, call `configure_logging("INFO")`, emit `logger.info("pipeline_started", pipeline="setup", stage="health", records_processed=0)`, parse the captured line with `json.loads`, and assert literal values for `event`, `pipeline`, `stage`, `records_processed`, and presence of an ISO timestamp.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/unit/test_logging.py -v`
 
 Expected: collection fails because the logging module does not exist.
 
-- [ ] **Step 3: Implement JSON logging**
+- [x] **Step 3: Implement JSON logging**
 
 Configure stdlib logging plus Structlog processors for log level, ISO UTC timestamp, stack information, exception formatting, and `JSONRenderer`. Return a bound logger from `get_logger`.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `pytest tests/unit/test_logging.py -v`
 
 Expected: 1 passed and no warnings.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run: `git add src/govinsight/observability tests/unit/test_logging.py && git commit -m "feat: add structured application logging"`
 
@@ -181,31 +181,31 @@ Run: `git add src/govinsight/observability tests/unit/test_logging.py && git com
 - Consumes: `Settings.database_url`, pool size and overflow.
 - Produces: `create_database_engine(settings: Settings) -> Engine` and `check_database(engine: Engine) -> bool`.
 
-- [ ] **Step 1: Write the failing unit test**
+- [x] **Step 1: Write the failing unit test**
 
 Create a SQLite in-memory engine, call `check_database(engine)`, and assert `True`. This catches a missing or invalid `SELECT 1` implementation without mocking SQLAlchemy.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/unit/test_database.py -v`
 
 Expected: collection fails because `govinsight.database.session` does not exist.
 
-- [ ] **Step 3: Implement minimal database functions**
+- [x] **Step 3: Implement minimal database functions**
 
 `create_database_engine` calls `create_engine(settings.database_url, pool_pre_ping=True, pool_size=settings.postgres_pool_size, max_overflow=settings.postgres_max_overflow)`. `check_database` opens a connection and returns whether `connection.execute(text("SELECT 1")).scalar_one() == 1`.
 
-- [ ] **Step 4: Verify unit GREEN**
+- [x] **Step 4: Verify unit GREEN**
 
 Run: `pytest tests/unit/test_database.py -v`
 
 Expected: 1 passed.
 
-- [ ] **Step 5: Add the integration contract**
+- [x] **Step 5: Add the integration contract**
 
 The integration test reads `GOVINSIGHT_DATABASE_URL`; if absent it skips with a precise reason. When present, it creates an engine from that URL and asserts `check_database(engine) is True`, disposing the engine afterward.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run: `git add src/govinsight/database tests/unit/test_database.py tests/integration/test_postgres.py && git commit -m "feat: add database connectivity boundary"`
 
@@ -220,27 +220,27 @@ Run: `git add src/govinsight/database tests/unit/test_database.py tests/integrat
 - Consumes: `check_database` through `app.state.database_engine`.
 - Produces: ASGI `app` and `GET /health` returning `200` when PostgreSQL is ready or `503` when it is unavailable.
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Use `TestClient`. Supply an app factory dependency that returns `True` and assert literal JSON `{"status": "ok", "database": "reachable"}` with 200. Supply one returning `False` and assert `{"detail": {"status": "unavailable", "database": "unreachable"}}` with 503.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `pytest tests/unit/test_health_api.py -v`
 
 Expected: collection fails because the API module does not exist.
 
-- [ ] **Step 3: Implement the app factory**
+- [x] **Step 3: Implement the app factory**
 
 Implement `create_app(database_check: Callable[[], bool] | None = None) -> FastAPI`. Configure logging, create/dispose the database engine through lifespan when no check is injected, and implement `/health` with the exact response contracts above. Export `app = create_app()`.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run: `pytest tests/unit/test_health_api.py -v`
 
 Expected: 2 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run: `git add src/govinsight/api tests/unit/test_health_api.py && git commit -m "feat: add database-aware health endpoint"`
 
@@ -259,45 +259,45 @@ Run: `git add src/govinsight/api tests/unit/test_health_api.py && git commit -m 
 - Consumes: environment settings and the package created earlier.
 - Produces: PostgreSQL 16 service, API service, and versioned schemas `bronze`, `silver`, `gold`, `control`.
 
-- [ ] **Step 1: Create an initial migration**
+- [x] **Step 1: Create an initial migration**
 
 The upgrade executes `CREATE SCHEMA IF NOT EXISTS` for `bronze`, `silver`, `gold`, and `control`. The downgrade drops only these empty schemas in reverse order. Alembic reads the SQLAlchemy URL from `Settings`, not a committed credential.
 
-- [ ] **Step 2: Create the non-root API image**
+- [x] **Step 2: Create the non-root API image**
 
 Use `python:3.12-slim`, install `requirements.txt`, copy the package and migrations, create an unprivileged `app` user, expose port 8000, and run `uvicorn govinsight.api.main:app --host 0.0.0.0 --port 8000`.
 
-- [ ] **Step 3: Create Compose services**
+- [x] **Step 3: Create Compose services**
 
 PostgreSQL 16 uses a named volume and `pg_isready`. API waits for a healthy database, receives `GOVINSIGHT_POSTGRES_HOST=postgres`, runs `alembic upgrade head` before Uvicorn, and has an HTTP healthcheck. Use `${VARIABLE:-default}` interpolation so `docker compose up` works without a secret file while `.env.example` documents overrides.
 
-- [ ] **Step 4: Validate configuration statically**
+- [x] **Step 4: Validate configuration statically**
 
 Run: `docker compose config --quiet`
 
 Expected: exit 0.
 
-- [ ] **Step 5: Start and verify the stack**
+- [x] **Step 5: Start and verify the stack**
 
 Run:
 
 ```powershell
 docker compose up -d --build
 docker compose ps
-docker compose exec -T api pytest -m "not integration" -v
-$env:GOVINSIGHT_DATABASE_URL='postgresql+psycopg://govinsight_app:govinsight_local@localhost:5432/govinsight'; pytest tests/integration/test_postgres.py -v
+pytest -m "not integration" -v
+$env:GOVINSIGHT_DATABASE_URL='postgresql+psycopg://govinsight_app:govinsight_local@127.0.0.1:5432/govinsight?connect_timeout=5'; pytest -p no:cacheprovider tests/integration/test_postgres.py -v
 Invoke-RestMethod http://localhost:8000/health
 ```
 
 Expected: both services healthy, unit suite passes, integration test passes, and health returns `status=ok` and `database=reachable`.
 
-- [ ] **Step 6: Inspect database schemas**
+- [x] **Step 6: Inspect database schemas**
 
 Run: `docker compose exec -T postgres psql -U govinsight_app -d govinsight -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('bronze','silver','gold','control') ORDER BY schema_name;"`
 
 Expected: exactly four rows.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 Run: `git add alembic.ini alembic Dockerfile docker-compose.yml .dockerignore && git commit -m "feat: add reproducible postgres application stack"`
 
@@ -311,7 +311,7 @@ Run: `git add alembic.ini alembic Dockerfile docker-compose.yml .dockerignore &&
 - Consumes: verified command output from Tasks 1–6.
 - Produces: reproducible setup instructions and factual Fase 1 checkpoint.
 
-- [ ] **Step 1: Run full quality verification**
+- [x] **Step 1: Run full quality verification**
 
 Run:
 
@@ -326,15 +326,15 @@ Invoke-RestMethod http://localhost:8000/health
 
 Expected: zero lint/format errors, all tests pass, Compose validates, services are healthy, and health reports database reachable.
 
-- [ ] **Step 2: Document only observed results**
+- [x] **Step 2: Document only observed results**
 
 README covers prerequisites, local install, Docker startup, tests, configuration, architecture scope, and current limitations. `docs/checkpoints/phase-1.md` records exact test counts, failures, service status, problems, corrections, and remaining risks from the fresh verification output.
 
-- [ ] **Step 3: Commit docs**
+- [x] **Step 3: Commit docs**
 
 Run: `git add README.md docs/checkpoints/phase-1.md && git commit -m "docs: add phase one setup and verification guide"`
 
-- [ ] **Step 4: Confirm clean status and history**
+- [x] **Step 4: Confirm clean status and history**
 
 Run: `git status --short; git log --oneline --decorate -10`
 
