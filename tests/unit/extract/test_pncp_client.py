@@ -1,14 +1,15 @@
 import json
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx2
 import pytest
 
+from govinsight.extract.pncp import FetchedPNCPPage
 from govinsight.extract.pncp.client import PNCPClient
 from govinsight.extract.pncp.errors import PNCPHTTPError, PNCPResponseError, PNCPRetryExhausted
-from govinsight.extract.pncp.models import ContractQuery, ProcurementQuery, QueryMode
+from govinsight.extract.pncp.models import ContractQuery, PNCPPage, ProcurementQuery, QueryMode
 from govinsight.extract.pncp.retry import RetryPolicy
 
 FIXTURE = Path(__file__).parents[2] / "fixtures" / "pncp" / "contratacoes_publicacao_page_1.json"
@@ -28,15 +29,23 @@ def client_for(
     *,
     policy: RetryPolicy | None = None,
     sleep: Any = None,
+    monotonic: Any = None,
+    utc_now: Any = None,
 ) -> PNCPClient:
     http_client = httpx2.Client(
         base_url="https://pncp.gov.br/api/consulta",
         transport=httpx2.MockTransport(handler),
     )
+    clock_dependencies = {}
+    if monotonic is not None:
+        clock_dependencies["monotonic"] = monotonic
+    if utc_now is not None:
+        clock_dependencies["utc_now"] = utc_now
     return PNCPClient(
         http_client=http_client,
         retry_policy=policy or RetryPolicy(jitter_ratio=0.0),
         sleep=sleep or (lambda _seconds: None),
+        **clock_dependencies,
     )
 
 
@@ -66,6 +75,62 @@ def test_no_content_becomes_an_empty_requested_page() -> None:
     assert page.page_number == 3
 
 
+def test_fetch_procurements_preserves_exact_http_response_metadata() -> None:
+    raw_body = '{ "data": [], "totalRegistros": 0, "totalPaginas": 0, '
+    raw_body += '"numeroPagina": 1, "paginasRestantes": 0, "empty": true }\n'
+    query = procurement_query()
+    monotonic_values = iter([10.000, 10.125])
+    collected_at = datetime(2025, 8, 1, 12, 0, tzinfo=UTC)
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.path == "/api/consulta/v1/contratacoes/publicacao"
+        assert dict(request.url.params) == {
+            "dataInicial": "20250801",
+            "dataFinal": "20250801",
+            "pagina": "1",
+            "tamanhoPagina": "10",
+            "codigoModalidadeContratacao": "6",
+        }
+        return httpx2.Response(200, content=raw_body.encode("utf-8"))
+
+    with client_for(
+        handler,
+        monotonic=lambda: next(monotonic_values),
+        utc_now=lambda: collected_at,
+    ) as client:
+        fetched = client.fetch_procurements(query)
+
+    assert isinstance(fetched, FetchedPNCPPage)
+    assert fetched.raw_body == raw_body
+    assert fetched.status_code == 200
+    assert fetched.duration_ms == 125.0
+    assert fetched.endpoint == "/v1/contratacoes/publicacao"
+    assert fetched.request_params == {
+        "dataInicial": "20250801",
+        "dataFinal": "20250801",
+        "pagina": 1,
+        "tamanhoPagina": 10,
+        "codigoModalidadeContratacao": 6,
+    }
+    assert fetched.collected_at == collected_at
+    assert fetched.page == PNCPPage.empty_page(1)
+
+
+def test_fetch_procurements_preserves_no_content_response_metadata() -> None:
+    query = procurement_query().model_copy(update={"page": 3})
+
+    with client_for(
+        lambda _request: httpx2.Response(204),
+        monotonic=iter([4.0, 4.05]).__next__,
+        utc_now=lambda: datetime(2025, 8, 1, 12, 0, tzinfo=UTC),
+    ) as client:
+        fetched = client.fetch_procurements(query)
+
+    assert fetched.raw_body == ""
+    assert fetched.status_code == 204
+    assert fetched.page == PNCPPage.empty_page(3)
+
+
 @pytest.mark.parametrize(
     ("mode", "expected_path"),
     [
@@ -93,6 +158,37 @@ def test_list_contracts_uses_the_official_endpoint_for_each_mode(
         page = client.list_contracts(query)
 
     assert page.total_records == 1
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_endpoint"),
+    [
+        (QueryMode.PUBLICATION, "/v1/contratos"),
+        (QueryMode.UPDATE, "/v1/contratos/atualizacao"),
+    ],
+)
+def test_fetch_contracts_preserves_endpoint_for_each_mode(
+    mode: QueryMode, expected_endpoint: str
+) -> None:
+    raw_body = '{ "data": [], "totalRegistros": 0, "totalPaginas": 0, '
+    raw_body += '"numeroPagina": 1, "paginasRestantes": 0, "empty": true }\n'
+    query = ContractQuery(
+        start_date=date(2025, 8, 1),
+        end_date=date(2025, 8, 1),
+        page_size=10,
+        mode=mode,
+    )
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.path == f"/api/consulta{expected_endpoint}"
+        return httpx2.Response(200, content=raw_body.encode("utf-8"))
+
+    with client_for(handler) as client:
+        fetched = client.fetch_contracts(query)
+
+    assert fetched.endpoint == expected_endpoint
+    assert fetched.raw_body == raw_body
+    assert fetched.page == PNCPPage.empty_page(1)
 
 
 def test_terminal_client_error_is_not_retried() -> None:

@@ -2,6 +2,8 @@ import random
 import re
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Self
 
 import httpx2
@@ -9,12 +11,31 @@ from pydantic import ValidationError
 
 from govinsight.config import Settings
 from govinsight.extract.pncp.errors import PNCPHTTPError, PNCPResponseError, PNCPRetryExhausted
-from govinsight.extract.pncp.models import ContractQuery, PNCPPage, ProcurementQuery, QueryMode
+from govinsight.extract.pncp.models import (
+    ContractQuery,
+    FetchedPNCPPage,
+    PNCPPage,
+    ProcurementQuery,
+    QueryMode,
+)
 from govinsight.extract.pncp.retry import RetryPolicy
 from govinsight.observability.logging import get_logger
 
 TRANSIENT_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 CNPJ_PATTERN = re.compile(r"^\d{14}$")
+_NO_CONTENT = object()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class _PNCPRequestResult:
+    raw_body: str
+    payload: Any
+    status_code: int
+    duration_ms: float
 
 
 class PNCPClient:
@@ -27,6 +48,8 @@ class PNCPClient:
         retry_policy: RetryPolicy | None = None,
         sleep: Callable[[float], None] = time.sleep,
         random_value: Callable[[], float] = random.random,
+        monotonic: Callable[[], float] = time.perf_counter,
+        utc_now: Callable[[], datetime] = _utc_now,
     ) -> None:
         self._owns_client = http_client is None
         self._client = http_client or httpx2.Client(
@@ -37,6 +60,8 @@ class PNCPClient:
         self._retry_policy = retry_policy or RetryPolicy()
         self._sleep = sleep
         self._random_value = random_value
+        self._monotonic = monotonic
+        self._utc_now = utc_now
         self._logger = get_logger(__name__)
 
     @classmethod
@@ -52,26 +77,41 @@ class PNCPClient:
         )
 
     def list_procurements(self, query: ProcurementQuery) -> PNCPPage:
+        return self.fetch_procurements(query).page
+
+    def fetch_procurements(self, query: ProcurementQuery) -> FetchedPNCPPage:
         endpoint = f"/v1/contratacoes/{query.mode.value}"
-        payload = self._request_json(endpoint, params=query.to_params())
-        if payload is None:
-            return PNCPPage.empty_page(query.page)
-        try:
-            return PNCPPage.model_validate(payload)
-        except ValidationError as exc:
-            raise PNCPResponseError(endpoint=endpoint, reason="invalid page envelope") from exc
+        return self._fetch_page(endpoint, query.to_params(), query.page)
 
     def list_contracts(self, query: ContractQuery) -> PNCPPage:
+        return self.fetch_contracts(query).page
+
+    def fetch_contracts(self, query: ContractQuery) -> FetchedPNCPPage:
         endpoint = "/v1/contratos"
         if query.mode is QueryMode.UPDATE:
             endpoint += "/atualizacao"
-        payload = self._request_json(endpoint, params=query.to_params())
-        if payload is None:
-            return PNCPPage.empty_page(query.page)
-        try:
-            return PNCPPage.model_validate(payload)
-        except ValidationError as exc:
-            raise PNCPResponseError(endpoint=endpoint, reason="invalid page envelope") from exc
+        return self._fetch_page(endpoint, query.to_params(), query.page)
+
+    def _fetch_page(
+        self, endpoint: str, params: dict[str, str | int], requested_page: int
+    ) -> FetchedPNCPPage:
+        result = self._request(endpoint, params=params)
+        if result.payload is _NO_CONTENT:
+            page = PNCPPage.empty_page(requested_page)
+        else:
+            try:
+                page = PNCPPage.model_validate(result.payload)
+            except ValidationError as exc:
+                raise PNCPResponseError(endpoint=endpoint, reason="invalid page envelope") from exc
+        return FetchedPNCPPage(
+            page=page,
+            raw_body=result.raw_body,
+            endpoint=endpoint,
+            request_params=params,
+            status_code=result.status_code,
+            duration_ms=result.duration_ms,
+            collected_at=self._utc_now(),
+        )
 
     def get_procurement(self, cnpj: str, year: int, sequence: int) -> dict[str, Any]:
         if not CNPJ_PATTERN.fullmatch(cnpj):
@@ -82,14 +122,16 @@ class PNCPClient:
             raise ValueError("sequence must be positive")
 
         endpoint = f"/v1/orgaos/{cnpj}/compras/{year}/{sequence}"
-        payload = self._request_json(endpoint)
+        payload = self._request(endpoint).payload
         if not isinstance(payload, dict):
             raise PNCPResponseError(endpoint=endpoint, reason="expected an object")
         return payload
 
-    def _request_json(self, endpoint: str, *, params: dict[str, str | int] | None = None) -> Any:
+    def _request(
+        self, endpoint: str, *, params: dict[str, str | int] | None = None
+    ) -> _PNCPRequestResult:
         for attempt in range(1, self._retry_policy.max_attempts + 1):
-            started_at = time.perf_counter()
+            started_at = self._monotonic()
             try:
                 response = self._client.get(endpoint, params=params)
             except httpx2.TransportError as exc:
@@ -97,19 +139,20 @@ class PNCPClient:
                     "pncp_transport_error",
                     endpoint=endpoint,
                     attempt=attempt,
-                    duration_ms=round((time.perf_counter() - started_at) * 1000, 3),
+                    duration_ms=round((self._monotonic() - started_at) * 1000, 3),
                 )
                 if attempt == self._retry_policy.max_attempts:
                     raise PNCPRetryExhausted(endpoint=endpoint, attempts=attempt) from exc
                 self._wait_before_retry(attempt)
                 continue
 
+            duration_ms = round((self._monotonic() - started_at) * 1000, 3)
             self._logger.info(
                 "pncp_response",
                 endpoint=endpoint,
                 status_code=response.status_code,
                 attempt=attempt,
-                duration_ms=round((time.perf_counter() - started_at) * 1000, 3),
+                duration_ms=duration_ms,
             )
             if response.status_code in TRANSIENT_STATUS_CODES:
                 if attempt == self._retry_policy.max_attempts:
@@ -123,11 +166,22 @@ class PNCPClient:
                     attempt=attempt,
                 )
             if response.status_code == 204:
-                return None
+                return _PNCPRequestResult(
+                    raw_body=response.text,
+                    payload=_NO_CONTENT,
+                    status_code=response.status_code,
+                    duration_ms=duration_ms,
+                )
             try:
-                return response.json()
+                payload = response.json()
             except (ValueError, TypeError) as exc:
                 raise PNCPResponseError(endpoint=endpoint, reason="malformed JSON") from exc
+            return _PNCPRequestResult(
+                raw_body=response.text,
+                payload=payload,
+                status_code=response.status_code,
+                duration_ms=duration_ms,
+            )
 
         raise PNCPRetryExhausted(endpoint=endpoint, attempts=self._retry_policy.max_attempts)
 
