@@ -42,8 +42,6 @@ def test_pncp_defaults_are_safe_for_the_official_api() -> None:
         ("pncp_retry_max_delay_seconds", 0),
     ],
 )
-def test_pncp_settings_reject_non_positive_operational_limits(
-    field: str, value: int
-) -> None:
+def test_pncp_settings_reject_non_positive_operational_limits(field: str, value: int) -> None:
     with pytest.raises(ValidationError):
         Settings(**{field: value})

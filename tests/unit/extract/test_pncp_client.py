@@ -8,7 +8,7 @@ import pytest
 
 from govinsight.extract.pncp.client import PNCPClient
 from govinsight.extract.pncp.errors import PNCPHTTPError, PNCPResponseError, PNCPRetryExhausted
-from govinsight.extract.pncp.models import ProcurementQuery
+from govinsight.extract.pncp.models import ContractQuery, ProcurementQuery, QueryMode
 from govinsight.extract.pncp.retry import RetryPolicy
 
 FIXTURE = Path(__file__).parents[2] / "fixtures" / "pncp" / "contratacoes_publicacao_page_1.json"
@@ -64,6 +64,35 @@ def test_no_content_becomes_an_empty_requested_page() -> None:
 
     assert page.empty is True
     assert page.page_number == 3
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_path"),
+    [
+        (QueryMode.PUBLICATION, "/api/consulta/v1/contratos"),
+        (QueryMode.UPDATE, "/api/consulta/v1/contratos/atualizacao"),
+    ],
+)
+def test_list_contracts_uses_the_official_endpoint_for_each_mode(
+    mode: QueryMode, expected_path: str
+) -> None:
+    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.path == expected_path
+        assert request.url.params["tamanhoPagina"] == "10"
+        return httpx2.Response(200, json=payload)
+
+    query = ContractQuery(
+        start_date=date(2025, 8, 1),
+        end_date=date(2025, 8, 1),
+        page_size=10,
+        mode=mode,
+    )
+    with client_for(handler) as client:
+        page = client.list_contracts(query)
+
+    assert page.total_records == 1
 
 
 def test_terminal_client_error_is_not_retried() -> None:
@@ -124,6 +153,26 @@ def test_repeated_transient_status_exhausts_bounded_attempts() -> None:
         client.list_procurements(procurement_query())
 
     assert requests == 3
+
+
+def test_transport_failure_is_retried_before_success() -> None:
+    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    attempts = 0
+    sleeps: list[float] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise httpx2.ConnectError("connection unavailable", request=request)
+        return httpx2.Response(200, json=payload)
+
+    with client_for(handler, sleep=sleeps.append) as client:
+        page = client.list_procurements(procurement_query())
+
+    assert page.total_records == 1
+    assert attempts == 2
+    assert sleeps == [0.5]
 
 
 def test_get_procurement_returns_detail_dictionary() -> None:

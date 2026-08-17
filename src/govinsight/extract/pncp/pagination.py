@@ -17,17 +17,11 @@ def iter_pages(fetch_page: PageFetcher, *, start_page: int = 1) -> Iterator[PNCP
         if page.page_number != requested_page:
             raise PNCPResponseError(
                 endpoint="pagination",
-                reason=(
-                    f"unexpected page number {page.page_number}; requested {requested_page}"
-                ),
+                reason=(f"unexpected page number {page.page_number}; requested {requested_page}"),
             )
 
         yield page
-        if (
-            page.empty
-            or page.remaining_pages == 0
-            or page.page_number >= page.total_pages
-        ):
+        if page.empty or page.remaining_pages == 0 or page.page_number >= page.total_pages:
             return
         requested_page += 1
 
