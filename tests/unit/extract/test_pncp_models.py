@@ -23,17 +23,19 @@ def test_procurement_query_emits_official_parameter_names() -> None:
         "codigoModalidadeContratacao": 6,
         "pagina": 2,
         "tamanhoPagina": 10,
-        "cnpjOrgao": "00394460000141",
+        "cnpj": "00394460000141",
     }
 
 
-def test_contract_query_omits_filters_that_are_not_supplied() -> None:
+def test_contract_query_emits_contract_specific_filter_names() -> None:
     query = ContractQuery(
         start_date=date(2025, 8, 1),
         end_date=date(2025, 8, 1),
         page=1,
         page_size=500,
         mode=QueryMode.UPDATE,
+        organization_cnpj="00394460000141",
+        administrative_unit_code="1945",
     )
 
     assert query.to_params() == {
@@ -41,6 +43,8 @@ def test_contract_query_omits_filters_that_are_not_supplied() -> None:
         "dataFinal": "20250801",
         "pagina": 1,
         "tamanhoPagina": 500,
+        "cnpjOrgao": "00394460000141",
+        "codigoUnidadeAdministrativa": "1945",
     }
 
 
@@ -51,7 +55,9 @@ def test_contract_query_omits_filters_that_are_not_supplied() -> None:
         ContractQuery,
     ],
 )
-def test_queries_reject_reversed_date_windows(query: type[ProcurementQuery | ContractQuery]) -> None:
+def test_queries_reject_reversed_date_windows(
+    query: type[ProcurementQuery | ContractQuery],
+) -> None:
     kwargs = {
         "start_date": date(2025, 8, 2),
         "end_date": date(2025, 8, 1),
