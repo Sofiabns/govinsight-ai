@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .hashing import request_fingerprint, sha256_text
+
 
 class RawDataset(StrEnum):
     PROCUREMENTS = "procurements"
@@ -47,6 +49,13 @@ class RawCapture(BaseModel):
             raise ValueError("collected_at must be timezone-aware")
         if self.collected_at.utcoffset().total_seconds() != 0:
             raise ValueError("collected_at must be UTC")
+        expected_request = request_fingerprint(
+            self.source, self.dataset.value, self.endpoint, self.request_params
+        )
+        if self.request_fingerprint != expected_request:
+            raise ValueError("request_fingerprint does not match request identity")
+        if self.body_sha256 != sha256_text(self.raw_body):
+            raise ValueError("body_sha256 does not match raw_body")
         return self
 
 
