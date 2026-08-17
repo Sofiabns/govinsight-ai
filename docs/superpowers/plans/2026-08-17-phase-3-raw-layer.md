@@ -1,6 +1,6 @@
 # Phase 3 RAW Layer Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Persist exact successful PNCP page responses in an immutable, idempotent and resumable PostgreSQL Bronze layer with auditable run metadata.
 
@@ -38,7 +38,7 @@
 - Consumes: parameter mappings produced by `ProcurementQuery.to_params()` and `ContractQuery.to_params()`.
 - Produces: `canonical_json(value) -> str`, `sha256_text(value) -> str`, `request_fingerprint(source, dataset, endpoint, params) -> str`, `scope_parameters(params) -> dict`, `scope_fingerprint(...) -> str`, `RawDataset`, `RunStatus`, `RawCapture`, `InsertOutcome`, and `IngestionResult`.
 
-- [ ] **Step 1: Write failing hashing tests with literal expectations**
+- [x] **Step 1: Write failing hashing tests with literal expectations**
 
 ```python
 def test_canonical_json_is_stable_and_preserves_unicode() -> None:
@@ -61,13 +61,13 @@ def test_scope_keeps_page_size_but_removes_page_number() -> None:
 Also assert that two dictionaries with opposite insertion order produce the same request and
 scope fingerprints, while changing `tamanhoPagina` changes the scope fingerprint.
 
-- [ ] **Step 2: Run the hashing tests and verify RED**
+- [x] **Step 2: Run the hashing tests and verify RED**
 
 Run: `.\.venv\Scripts\python.exe -m pytest tests/unit/raw/test_hashing.py -v -p no:cacheprovider`
 
 Expected: collection fails with `ModuleNotFoundError: No module named 'govinsight.raw'`.
 
-- [ ] **Step 3: Implement deterministic hashing**
+- [x] **Step 3: Implement deterministic hashing**
 
 ```python
 import hashlib
@@ -93,13 +93,13 @@ Build request fingerprints from a canonical object containing `source`, `dataset
 and a copied parameter dictionary. Build scope fingerprints from the same object after calling
 `scope_parameters`.
 
-- [ ] **Step 4: Verify hashing GREEN**
+- [x] **Step 4: Verify hashing GREEN**
 
 Run: `.\.venv\Scripts\python.exe -m pytest tests/unit/raw/test_hashing.py -v -p no:cacheprovider`
 
 Expected: every hashing test passes.
 
-- [ ] **Step 5: Write failing domain-model tests**
+- [x] **Step 5: Write failing domain-model tests**
 
 Create literal UTC datetimes and assert that `RawCapture` accepts a valid 200 response but rejects:
 
@@ -117,13 +117,13 @@ Assert `window_end < window_start`, uppercase/short hashes and naive `collected_
 Assert `InsertOutcome(inserted=False, raw_response_id=None)` and a frozen `IngestionResult` carry
 literal counters without mutation.
 
-- [ ] **Step 6: Run model tests and verify RED**
+- [x] **Step 6: Run model tests and verify RED**
 
 Run: `.\.venv\Scripts\python.exe -m pytest tests/unit/raw/test_models.py -v -p no:cacheprovider`
 
 Expected: import fails because `govinsight.raw.models` does not exist.
 
-- [ ] **Step 7: Implement frozen validated models**
+- [x] **Step 7: Implement frozen validated models**
 
 Use Pydantic `BaseModel` with `ConfigDict(frozen=True)` for `RawCapture`, `InsertOutcome` and
 `IngestionResult`. Define:
@@ -148,13 +148,13 @@ hashes against `^[0-9a-f]{64}$` and reject reversed windows.
 contains `run_id: UUID`, `status: RunStatus`, `pages_processed`, `records_received`,
 `records_inserted`, and `records_duplicate`, with all counters constrained to non-negative values.
 
-- [ ] **Step 8: Verify Task 1 GREEN and refactor**
+- [x] **Step 8: Verify Task 1 GREEN and refactor**
 
 Run: `.\.venv\Scripts\python.exe -m pytest tests/unit/raw -v -p no:cacheprovider`
 
 Expected: all Task 1 tests pass without warnings.
 
-- [ ] **Step 9: Commit Task 1**
+- [x] **Step 9: Commit Task 1**
 
 ```powershell
 git add src/govinsight/raw tests/unit/raw
@@ -175,13 +175,14 @@ git commit -m "feat: add deterministic raw capture identities"
 - Consumes: existing `ProcurementQuery`, `ContractQuery`, `PNCPPage` and retry behavior.
 - Produces: frozen `FetchedPNCPPage`; `PNCPClient.fetch_procurements(query) -> FetchedPNCPPage`; `PNCPClient.fetch_contracts(query) -> FetchedPNCPPage`.
 
-- [ ] **Step 1: Write failing enriched-response tests**
+- [x] **Step 1: Write failing enriched-response tests**
 
 Add a handler returning deliberately spaced JSON:
 
 ```python
 raw_body = '{ "data": [], "totalRegistros": 0, "totalPaginas": 0, '
 raw_body += '"numeroPagina": 1, "paginasRestantes": 0, "empty": true }\n'
+
 
 def handler(_request: httpx2.Request) -> httpx2.Response:
     return httpx2.Response(200, content=raw_body.encode("utf-8"))
@@ -193,14 +194,14 @@ duration `125.0`, official endpoint/params, exact collection time and a validate
 Add a 204 test asserting empty text, status 204 and requested page number. Add contract-mode tests
 asserting the root and `/atualizacao` endpoints.
 
-- [ ] **Step 2: Run enriched-response tests and verify RED**
+- [x] **Step 2: Run enriched-response tests and verify RED**
 
 Run: `.\.venv\Scripts\python.exe -m pytest tests/unit/extract/test_pncp_client.py -v -p no:cacheprovider`
 
 Expected: tests fail because `fetch_procurements`, `fetch_contracts` and `FetchedPNCPPage` are
 missing.
 
-- [ ] **Step 3: Add `FetchedPNCPPage` and refactor the request boundary**
+- [x] **Step 3: Add `FetchedPNCPPage` and refactor the request boundary**
 
 Define this frozen Pydantic model:
 
@@ -231,13 +232,13 @@ def list_procurements(self, query: ProcurementQuery) -> PNCPPage:
 
 Apply the equivalent delegation for contracts.
 
-- [ ] **Step 4: Verify GREEN and Phase 2 compatibility**
+- [x] **Step 4: Verify GREEN and Phase 2 compatibility**
 
 Run: `.\.venv\Scripts\python.exe -m pytest tests/unit/extract/test_pncp_client.py tests/unit/extract/test_pncp_models.py -v -p no:cacheprovider`
 
 Expected: enriched tests and all existing client/model tests pass.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 ```powershell
 git add src/govinsight/extract/pncp tests/unit/extract/test_pncp_client.py
@@ -257,7 +258,7 @@ git commit -m "feat: preserve exact PNCP response metadata"
 - Consumes: revision `20260817_0001`, PostgreSQL connection from `GOVINSIGHT_DATABASE_URL`.
 - Produces: SQLAlchemy Core tables `etl_run`, `raw_api_response`, `extraction_checkpoint`, `etl_watermark`; Alembic revision `20260817_0002`.
 
-- [ ] **Step 1: Write the failing real-PostgreSQL migration test**
+- [x] **Step 1: Write the failing real-PostgreSQL migration test**
 
 Mark the test `integration`. With an explicit database URL, run `alembic upgrade head`, inspect
 the `bronze` and `control` schemas and assert these exact names:
@@ -276,7 +277,7 @@ Assert the RAW unique constraint is named `uq_raw_response_identity_body`, the F
 dates and positive pages. In a `try/finally`, downgrade to `20260817_0001`, assert the four tables
 are absent, then upgrade back to `head` so the shared development stack is left ready.
 
-- [ ] **Step 2: Run migration test and verify RED**
+- [x] **Step 2: Run migration test and verify RED**
 
 Run with the Compose PostgreSQL URL:
 
@@ -287,7 +288,7 @@ $env:GOVINSIGHT_DATABASE_URL = "postgresql+psycopg://govinsight_app:govinsight_l
 
 Expected: test fails because revision `20260817_0002` and the four tables do not exist.
 
-- [ ] **Step 3: Implement the migration and matching Core tables**
+- [x] **Step 3: Implement the migration and matching Core tables**
 
 Create tables in this order: `control.etl_run`, `control.extraction_checkpoint`,
 `control.etl_watermark`, `bronze.raw_api_response`. Use the exact columns and rules in the design.
@@ -322,13 +323,13 @@ and mode checks, and the named FK. Add an index on `(dataset, collected_at)`.
 `downgrade()` drops only the four Phase 3 tables in reverse dependency order and leaves all four
 schemas intact. Mirror the migration columns in `raw/tables.py` using a module-level `MetaData`.
 
-- [ ] **Step 4: Verify migration GREEN**
+- [x] **Step 4: Verify migration GREEN**
 
 Run the same migration test command.
 
 Expected: upgrade, schema assertions, downgrade and restoration to head all pass.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 ```powershell
 git add alembic/versions/20260817_0002_create_raw_control_tables.py src/govinsight/raw/tables.py tests/integration/test_raw_migration.py
@@ -347,7 +348,7 @@ git commit -m "feat: create bronze raw and control tables"
 - Consumes: SQLAlchemy `Connection`, Task 1 domain models and Task 3 Core tables.
 - Produces: `RawResponseRepository.insert`, `RunRepository.create/apply_page/finish`, and `CheckpointRepository.next_page/advance`.
 
-- [ ] **Step 1: Write failing repository integration tests**
+- [x] **Step 1: Write failing repository integration tests**
 
 Use a real PostgreSQL connection and the recorded official fixture. Build a `RawCapture` whose
 `raw_body` is the exact file text. Assert:
@@ -375,7 +376,7 @@ For atomic rollback, open `with engine.connect() as connection`, begin a transac
 apply counters and advance checkpoint, then raise a test-only `ForcedRollback`. Roll back and
 assert all three changes are absent.
 
-- [ ] **Step 2: Run repository tests and verify RED**
+- [x] **Step 2: Run repository tests and verify RED**
 
 Run with `GOVINSIGHT_DATABASE_URL` set:
 
@@ -383,7 +384,7 @@ Run with `GOVINSIGHT_DATABASE_URL` set:
 
 Expected: collection fails because `govinsight.raw.repositories` does not exist.
 
-- [ ] **Step 3: Implement repositories without internal commits**
+- [x] **Step 3: Implement repositories without internal commits**
 
 Use PostgreSQL insert for concurrency-safe idempotency:
 
@@ -409,13 +410,13 @@ return InsertOutcome(
 canonical scope and accepts the explicit `completed: bool` derived from page metadata.
 `next_page` follows the approved incomplete/completed behavior.
 
-- [ ] **Step 4: Verify repositories GREEN**
+- [x] **Step 4: Verify repositories GREEN**
 
 Run the repository integration test command again.
 
 Expected: idempotency, versioning, exact text, counters, resume and rollback tests pass.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 ```powershell
 git add src/govinsight/raw/repositories.py tests/integration/test_raw_repositories.py
@@ -436,7 +437,7 @@ git commit -m "feat: add transactional raw repositories"
 - Produces: `RawIngestionService.ingest_procurements(query) -> IngestionResult` and
   `RawIngestionService.ingest_contracts(query) -> IngestionResult`.
 
-- [ ] **Step 1: Write failing end-to-end service tests**
+- [x] **Step 1: Write failing end-to-end service tests**
 
 Use a small fake at the external HTTP boundary that returns real `FetchedPNCPPage` instances for
 two pages. Keep repositories and PostgreSQL real. The first ingestion must assert:
@@ -460,7 +461,7 @@ Add a contract test proving `ingest_contracts` uses `fetch_contracts`. Assert
 `control.etl_watermark` stays empty for every test. Clean test rows by unique `pipeline_name` and
 scope fingerprint in `finally` blocks.
 
-- [ ] **Step 2: Run service tests and verify RED**
+- [x] **Step 2: Run service tests and verify RED**
 
 Run with `GOVINSIGHT_DATABASE_URL` set:
 
@@ -468,7 +469,7 @@ Run with `GOVINSIGHT_DATABASE_URL` set:
 
 Expected: collection fails because `govinsight.raw.service` does not exist.
 
-- [ ] **Step 3: Implement the service and page transaction loop**
+- [x] **Step 3: Implement the service and page transaction loop**
 
 Construct `RawIngestionService(engine, client, pipeline_name="pncp_raw")`. Public methods pass a
 dataset enum, query and the correct client fetch method to a private typed page loop.
@@ -510,7 +511,7 @@ Catch project PNCP errors as `PNCP_ERROR`, SQLAlchemy errors as `PERSISTENCE_ERR
 exceptions as `INGESTION_ERROR`; mark the run `FAILED` in a fresh transaction and re-raise without
 including exception text or response content in `error_code`.
 
-- [ ] **Step 4: Verify service GREEN**
+- [x] **Step 4: Verify service GREEN**
 
 Run the service integration tests again, followed by:
 
@@ -518,7 +519,7 @@ Run the service integration tests again, followed by:
 
 Expected: ingestion, replay, interruption, resume, contract and repository tests all pass.
 
-- [ ] **Step 5: Commit Task 5**
+- [x] **Step 5: Commit Task 5**
 
 ```powershell
 git add src/govinsight/raw/service.py tests/integration/test_raw_service.py
@@ -538,14 +539,14 @@ git commit -m "feat: add resumable raw ingestion service"
 - Consumes: fresh measured outputs from every Phase 3 gate.
 - Produces: reproducible RAW ingestion instructions and truthful `STAGE_STATUS`.
 
-- [ ] **Step 1: Document migration and RAW ingestion usage**
+- [x] **Step 1: Document migration and RAW ingestion usage**
 
 Add a Phase 3 README section showing `alembic upgrade head`, construction of
 `RawIngestionService`, one bounded procurement query and the distinction between extraction
 checkpoint and untouched end-to-end watermark. Document exact-text storage, uniqueness, retry
 inheritance and that no Silver transformation occurs.
 
-- [ ] **Step 2: Run the complete local quality suite**
+- [x] **Step 2: Run the complete local quality suite**
 
 ```powershell
 .\.venv\Scripts\ruff.exe check .
@@ -555,7 +556,7 @@ inheritance and that no Silver transformation occurs.
 
 Expected: zero lint/format failures, all unit tests pass and branch coverage is at least 80%.
 
-- [ ] **Step 3: Run real integration and migration gates**
+- [x] **Step 3: Run real integration and migration gates**
 
 With the Compose database URL set, run:
 
@@ -577,14 +578,14 @@ Invoke-RestMethod http://127.0.0.1:8000/health
 Expected: live contract passes, image builds, both containers are healthy and health returns
 `ok/reachable`.
 
-- [ ] **Step 5: Perform the Phase 3 BUG HUNT**
+- [x] **Step 5: Perform the Phase 3 BUG HUNT**
 
 Inspect edge cases for empty 204 bodies, Unicode hashing, concurrent duplicates, changed bodies,
 page-size checkpoint identity, partial failures, run terminal state, rollback, raw-body leakage and
 watermark mutation. Inspect API logs for `Traceback`, `ERROR` or `CRITICAL`. Any discovered defect
 gets a failing regression test, minimal fix and full relevant retest before continuing.
 
-- [ ] **Step 6: Record the checkpoint from fresh evidence**
+- [x] **Step 6: Record the checkpoint from fresh evidence**
 
 Create `docs/checkpoints/phase-3.md` using the mandatory checkpoint fields: phase, status, files,
 unit/integration test counts, failures, coverage, RAW responses and business records persisted,
@@ -603,14 +604,14 @@ git status --short
 Expected: no whitespace errors, no unchecked plan steps after completion, and only intended
 documentation changes remain before the final commit.
 
-- [ ] **Step 8: Commit documentation and checkpoint**
+- [x] **Step 8: Commit documentation and checkpoint**
 
 ```powershell
 git add README.md docs/checkpoints/phase-3.md docs/superpowers/plans/2026-08-17-phase-3-raw-layer.md
 git commit -m "docs: add raw layer guide and checkpoint"
 ```
 
-- [ ] **Step 9: Confirm clean Phase 3 branch**
+- [x] **Step 9: Confirm clean Phase 3 branch**
 
 Run: `git status --short; git log --oneline --decorate -12`
 

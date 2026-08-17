@@ -6,10 +6,10 @@ through APIs, dashboards, and guarded AI agents.
 
 ## Current status
 
-**Phase 2 — Extraction** adds a validated, paginated and resilient client for the official PNCP
-consultation API. The client supports procurement publication/update, contract
-publication/update and procurement detail. Persistence remains deliberately deferred to the
-Bronze layer in Phase 3.
+**Phase 3 — RAW Layer** adds immutable PostgreSQL Bronze storage for exact successful PNCP
+responses, auditable ingestion runs and resumable extraction checkpoints. Procurement and
+contract collection support publication and update modes while preserving the Phase 2 client
+interfaces.
 
 ## Architecture foundation
 
@@ -128,6 +128,59 @@ Operational logs contain only endpoint, status, attempt and duration. Response b
 copied into exceptions or logs. The source fixture under `tests/fixtures/pncp/` preserves a
 real response shape, including a nullable homologated value.
 
+## RAW ingestion
+
+Start PostgreSQL and apply the current schema before running a local ingestion:
+
+```powershell
+docker compose up -d postgres
+$env:GOVINSIGHT_POSTGRES_HOST = "127.0.0.1"
+.\.venv\Scripts\alembic.exe upgrade head
+```
+
+This bounded example requests procurement publications for one day, starting at page 1 with 10
+records per page. The service follows PNCP pagination until the response identifies the final
+page:
+
+```python
+from datetime import date
+
+from govinsight.config import Settings
+from govinsight.database.session import create_database_engine
+from govinsight.extract.pncp.client import PNCPClient
+from govinsight.extract.pncp.models import ProcurementQuery
+from govinsight.raw.service import RawIngestionService
+
+settings = Settings()
+engine = create_database_engine(settings)
+
+query = ProcurementQuery(
+    start_date=date(2025, 8, 1),
+    end_date=date(2025, 8, 1),
+    modality_code=6,
+    page=1,
+    page_size=10,
+)
+
+try:
+    with PNCPClient.from_settings(settings) as client:
+        result = RawIngestionService(engine, client).ingest_procurements(query)
+    print(result)
+finally:
+    engine.dispose()
+```
+
+Each successful HTTP response is stored as the exact `response.text`; its SHA-256 is calculated
+from that text encoded as UTF-8. The full request identity and body hash make identical replays
+idempotent, while a changed body creates a new immutable Bronze version. The service inherits the
+bounded PNCP retry policy documented above and never stores unsuccessful response bodies.
+
+`control.extraction_checkpoint` records the last successfully committed page for this exact query
+scope, including page size, so an interrupted extraction can resume safely. It is separate from
+`control.etl_watermark`: Phase 3 creates the end-to-end watermark table but deliberately leaves it
+untouched until downstream Silver, Gold and critical quality gates can confirm progress. Phase 3
+stores RAW responses only; it performs no Silver transformation or business-record upsert.
+
 ## Project structure
 
 ```text
@@ -136,6 +189,7 @@ docs/                     Discovery, plans, and phase checkpoints
 src/govinsight/api/       FastAPI application
 src/govinsight/database/  SQLAlchemy connectivity boundary
 src/govinsight/extract/   PNCP query, retry, client, and pagination boundaries
+src/govinsight/raw/       Bronze identities, repositories, and ingestion service
 src/govinsight/observability/ Structured logging
 tests/unit/               Fast deterministic tests
 tests/integration/        Real service contracts
@@ -143,7 +197,7 @@ tests/integration/        Real service contracts
 
 ## Current limitations
 
-- Phase 2 returns validated records in memory but does not persist RAW payloads.
-- Incremental watermarks and idempotent storage begin in Phase 3.
+- Phase 3 persists exact successful responses, not normalized Silver business records.
+- The end-to-end watermark remains untouched until downstream stages and quality gates succeed.
 - No analytical tables, dashboard, or AI agents exist yet.
 - The Compose defaults are intended only for local development.
