@@ -47,7 +47,8 @@ Expected: repository initialized with `feat/phase-1-project-setup` as the unborn
 
 Use these direct runtime dependencies in `pyproject.toml`: `alembic`, `fastapi`, `pydantic-settings`, `psycopg[binary]`, `sqlalchemy`, `structlog`, and `uvicorn[standard]`. Use `pytest`, `pytest-cov`, and `ruff` in the `dev` optional group. Configure setuptools package discovery under `src`, pytest paths/markers, coverage for `govinsight`, and Ruff target `py312`.
 
-`requirements.txt` contains `-e .`; `requirements-dev.txt` contains `-e .[dev]`.
+`requirements.txt` contains `.` for a non-editable production install;
+`requirements-dev.txt` contains `-e .[dev]` for local development.
 
 - [ ] **Step 3: Create safe environment templates**
 
