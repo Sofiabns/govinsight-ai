@@ -10,4 +10,3 @@ def test_check_database_executes_a_real_round_trip() -> None:
         assert check_database(engine) is True
     finally:
         engine.dispose()
-

@@ -20,7 +20,4 @@ def test_health_blocks_readiness_when_database_is_unavailable() -> None:
         response = client.get("/health")
 
     assert response.status_code == 503
-    assert response.json() == {
-        "detail": {"status": "unavailable", "database": "unreachable"}
-    }
-
+    assert response.json() == {"detail": {"status": "unavailable", "database": "unreachable"}}

@@ -21,4 +21,3 @@ def test_structured_log_contains_operational_context(capsys) -> None:
     assert event["records_processed"] == 0
     assert event["level"] == "info"
     assert event["timestamp"].endswith("Z")
-

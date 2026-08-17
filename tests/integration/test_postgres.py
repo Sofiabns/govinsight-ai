@@ -17,4 +17,3 @@ def test_postgres_accepts_application_connection() -> None:
         assert check_database(engine) is True
     finally:
         engine.dispose()
-
