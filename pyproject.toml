@@ -34,6 +34,7 @@ testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 markers = [
   "integration: requires an external service such as PostgreSQL",
+  "live_api: requires access to a public external API",
 ]
 
 [tool.coverage.run]
