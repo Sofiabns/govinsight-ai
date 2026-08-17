@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from sqlalchemy import Engine
 
 from govinsight.extract.pncp.client import PNCPClient
-from govinsight.extract.pncp.errors import PNCPError
+from govinsight.extract.pncp.errors import PNCPError, PNCPResponseError
 from govinsight.extract.pncp.models import (
     ContractQuery,
     FetchedPNCPPage,
@@ -86,6 +86,13 @@ class RawIngestionService:
             while True:
                 page_query = query.model_copy(update={"page": page_number})
                 fetched = fetch_page(page_query)
+                if fetched.page.page_number != page_number:
+                    raise PNCPResponseError(
+                        endpoint=fetched.endpoint,
+                        reason=(
+                            f"expected page {page_number}, received page {fetched.page.page_number}"
+                        ),
+                    )
                 requested_params = page_query.to_params()
                 requested_fingerprint = (
                     initial_request_fingerprint
@@ -155,13 +162,13 @@ class RawIngestionService:
             with self._engine.begin() as connection:
                 self._runs.finish(connection, run_id, RunStatus.SUCCEEDED)
         except PNCPError:
-            self._try_mark_failed(run_id, "PNCP_ERROR")
+            self._mark_failed(run_id, "PNCP_ERROR")
             raise
         except sa.exc.SQLAlchemyError:
-            self._try_mark_failed(run_id, "PERSISTENCE_ERROR")
+            self._mark_failed(run_id, "PERSISTENCE_ERROR")
             raise
         except Exception:
-            self._try_mark_failed(run_id, "INGESTION_ERROR")
+            self._mark_failed(run_id, "INGESTION_ERROR")
             raise
 
         return IngestionResult(
@@ -173,12 +180,9 @@ class RawIngestionService:
             records_duplicate=records_duplicate,
         )
 
-    def _try_mark_failed(self, run_id: UUID, error_code: str) -> None:
-        try:
-            with self._engine.begin() as connection:
-                self._runs.finish(connection, run_id, RunStatus.FAILED, error_code=error_code)
-        except Exception:
-            pass
+    def _mark_failed(self, run_id: UUID, error_code: str) -> None:
+        with self._engine.begin() as connection:
+            self._runs.finish(connection, run_id, RunStatus.FAILED, error_code=error_code)
 
     @staticmethod
     def _endpoint(dataset: RawDataset, mode: QueryMode) -> str:
