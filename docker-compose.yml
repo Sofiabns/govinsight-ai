@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-govinsight}
+      POSTGRES_USER: ${POSTGRES_USER:-govinsight_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-govinsight_local}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      GOVINSIGHT_APP_ENV: ${GOVINSIGHT_APP_ENV:-development}
+      GOVINSIGHT_LOG_LEVEL: ${GOVINSIGHT_LOG_LEVEL:-INFO}
+      GOVINSIGHT_POSTGRES_DB: ${POSTGRES_DB:-govinsight}
+      GOVINSIGHT_POSTGRES_USER: ${POSTGRES_USER:-govinsight_app}
+      GOVINSIGHT_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-govinsight_local}
+      GOVINSIGHT_POSTGRES_HOST: postgres
+      GOVINSIGHT_POSTGRES_PORT: 5432
+      GOVINSIGHT_POSTGRES_POOL_SIZE: ${GOVINSIGHT_POSTGRES_POOL_SIZE:-5}
+      GOVINSIGHT_POSTGRES_MAX_OVERFLOW: ${GOVINSIGHT_POSTGRES_MAX_OVERFLOW:-10}
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && exec uvicorn govinsight.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
