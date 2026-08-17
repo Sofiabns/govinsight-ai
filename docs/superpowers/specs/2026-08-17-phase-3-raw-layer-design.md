@@ -95,7 +95,7 @@ resume cannot silently change page boundaries.
 | `pipeline_name` | text | Required |
 | `dataset` | text | Required |
 | `mode` | text | Required |
-| `scope_params` | jsonb | Canonical scope without pagination |
+| `scope_params` | jsonb | Canonical scope without `pagina`, including `tamanhoPagina` |
 | `last_successful_page` | integer | Positive |
 | `completed` | boolean | Required, default false |
 | `updated_at` | timestamptz | Required UTC instant |
@@ -155,11 +155,14 @@ For each page, one database transaction:
 
 1. inserts the RAW response or identifies it as duplicate;
 2. increments run counters;
-3. advances the extraction checkpoint.
+3. advances the extraction checkpoint and marks it complete when page metadata identifies the
+   final page.
 
-After the last page, a separate transaction marks the checkpoint complete and the run successful.
-If fetching or persistence fails, a separate transaction marks the run failed with a safe error
-code. Previously committed pages and their checkpoint remain available for resumption.
+After the last page transaction commits, a separate transaction marks the run successful. This
+prevents a crash between the last page and run finalization from leaving an incomplete checkpoint
+that would resume beyond the final page. If fetching or persistence fails, a separate transaction
+marks the run failed with a safe error code. Previously committed pages and their checkpoint
+remain available for resumption.
 
 `records_received` counts records returned by PNCP. `records_inserted` counts records contained in
 new Bronze response rows. `records_duplicate` counts records contained in responses rejected by
