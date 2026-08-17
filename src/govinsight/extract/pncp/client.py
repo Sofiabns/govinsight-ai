@@ -159,7 +159,7 @@ class PNCPClient:
                     raise PNCPRetryExhausted(endpoint=endpoint, attempts=attempt)
                 self._wait_before_retry(attempt, response.headers.get("Retry-After"))
                 continue
-            if response.status_code >= 400:
+            if not 200 <= response.status_code <= 299:
                 raise PNCPHTTPError(
                     status_code=response.status_code,
                     endpoint=endpoint,
