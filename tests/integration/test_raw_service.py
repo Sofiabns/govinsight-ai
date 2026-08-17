@@ -8,7 +8,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy import Engine, create_engine
 
-from govinsight.extract.pncp.errors import PNCPRetryExhausted
+from govinsight.extract.pncp.errors import PNCPResponseError, PNCPRetryExhausted
 from govinsight.extract.pncp.models import (
     ContractQuery,
     FetchedPNCPPage,
@@ -324,6 +324,57 @@ def test_interrupted_run_is_failed_and_resumes_at_next_page(engine: Engine) -> N
 
 
 @pytest.mark.integration
+def test_mismatched_response_page_fails_before_raw_or_checkpoint_persistence(
+    engine: Engine,
+) -> None:
+    identity = uuid4().hex
+    pipeline_name = f"service-page-mismatch-{identity}"
+    query = _procurement_query(identity)
+    scope = _scope(RawDataset.PROCUREMENTS, query)
+    client = FakePNCPClient(
+        procurements={1: _page([{"id": "wrong-page"}], number=2, total_pages=2, remaining_pages=0)}
+    )
+
+    try:
+        with pytest.raises(PNCPResponseError) as caught:
+            RawIngestionService(engine, client, pipeline_name=pipeline_name).ingest_procurements(
+                query
+            )
+
+        assert "expected page 1" in caught.value.reason
+        assert "received page 2" in caught.value.reason
+        assert client.requests == [(RawDataset.PROCUREMENTS, 1)]
+
+        with engine.connect() as connection:
+            failed_run = (
+                connection.execute(
+                    sa.select(etl_run).where(etl_run.c.pipeline_name == pipeline_name)
+                )
+                .mappings()
+                .one()
+            )
+            raw_count = connection.execute(
+                sa.select(sa.func.count())
+                .select_from(raw_api_response.join(etl_run))
+                .where(etl_run.c.pipeline_name == pipeline_name)
+            ).scalar_one()
+            checkpoint_count = connection.execute(
+                sa.select(sa.func.count())
+                .select_from(extraction_checkpoint)
+                .where(extraction_checkpoint.c.scope_fingerprint == scope)
+            ).scalar_one()
+
+        assert failed_run["status"] == RunStatus.FAILED.value
+        assert failed_run["error_code"] == "PNCP_ERROR"
+        assert failed_run["pages_processed"] == 0
+        assert raw_count == 0
+        assert checkpoint_count == 0
+        _assert_watermark_empty(engine)
+    finally:
+        _cleanup(engine, pipeline_name=pipeline_name, scope=scope)
+
+
+@pytest.mark.integration
 def test_contract_ingestion_routes_to_contract_fetch_and_persists_contract_dataset(
     engine: Engine,
 ) -> None:
@@ -408,7 +459,9 @@ def test_checkpoint_read_failure_preserves_run_and_classifies_persistence_error(
 
 
 @pytest.mark.integration
-def test_failure_finalization_does_not_replace_original_pncp_error(engine: Engine) -> None:
+def test_failure_finalization_propagates_persistence_error_and_leaves_run_unreconciled(
+    engine: Engine,
+) -> None:
     identity = uuid4().hex
     pipeline_name = f"service-finalization-error-{identity}"
     query = _procurement_query(identity)
@@ -438,7 +491,7 @@ def test_failure_finalization_does_not_replace_original_pncp_error(engine: Engin
             raise AssertionError("contract fetch is not expected")
 
     try:
-        with pytest.raises(PNCPRetryExhausted):
+        with pytest.raises(sa.exc.OperationalError):
             RawIngestionService(
                 timeout_engine,
                 LockingFailureClient(),
