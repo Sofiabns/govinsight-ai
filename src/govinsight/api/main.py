@@ -58,4 +58,3 @@ def create_app(database_check: DatabaseCheck | None = None) -> FastAPI:
 
 
 app = create_app()
-

@@ -27,4 +27,3 @@ def configure_logging(log_level: str) -> None:
 
 def get_logger(name: str) -> FilteringBoundLogger:
     return structlog.get_logger(name)
-

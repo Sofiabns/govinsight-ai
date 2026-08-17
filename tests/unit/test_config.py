@@ -21,4 +21,3 @@ def test_database_url_percent_encodes_credentials() -> None:
 def test_settings_reject_non_positive_pool_size() -> None:
     with pytest.raises(ValidationError):
         Settings(postgres_pool_size=0)
-
