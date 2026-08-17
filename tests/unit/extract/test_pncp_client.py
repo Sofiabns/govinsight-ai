@@ -206,6 +206,27 @@ def test_terminal_client_error_is_not_retried() -> None:
     assert "sensitive body" not in str(caught.value)
 
 
+def test_redirect_is_rejected_without_accessing_its_body() -> None:
+    class RedirectResponse(httpx2.Response):
+        @property
+        def content(self) -> bytes:
+            raise AssertionError("redirect response body was accessed")
+
+        @property
+        def text(self) -> str:
+            raise AssertionError("redirect response body was accessed")
+
+    with (
+        client_for(lambda _request: RedirectResponse(302, content=b"sensitive body")) as client,
+        pytest.raises(PNCPHTTPError) as caught,
+    ):
+        client.fetch_procurements(procurement_query())
+
+    assert caught.value.status_code == 302
+    assert caught.value.endpoint == "/v1/contratacoes/publicacao"
+    assert "sensitive body" not in str(caught.value)
+
+
 @pytest.mark.parametrize(
     "response",
     [
