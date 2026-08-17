@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from math import isfinite
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -49,4 +50,4 @@ class RetryPolicy(BaseModel):
             except (TypeError, ValueError, OverflowError):
                 return None
 
-        return seconds if seconds >= 0 else None
+        return seconds if isfinite(seconds) and seconds >= 0 else None
