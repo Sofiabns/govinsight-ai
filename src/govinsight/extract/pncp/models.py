@@ -43,7 +43,7 @@ class ProcurementQuery(_DateWindow):
         params = self._common_params()
         params["codigoModalidadeContratacao"] = self.modality_code
         if self.organization_cnpj is not None:
-            params["cnpjOrgao"] = self.organization_cnpj
+            params["cnpj"] = self.organization_cnpj
         if self.administrative_unit_code is not None:
             params["codigoUnidadeAdministrativa"] = self.administrative_unit_code
         return params
