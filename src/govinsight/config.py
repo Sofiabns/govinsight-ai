@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import AnyHttpUrl, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     postgres_port: int = Field(default=5432, ge=1, le=65535)
     postgres_pool_size: int = Field(default=5, gt=0)
     postgres_max_overflow: int = Field(default=10, ge=0)
+    pncp_base_url: AnyHttpUrl = AnyHttpUrl("https://pncp.gov.br/api/consulta")
+    pncp_timeout_seconds: float = Field(default=30.0, gt=0)
+    pncp_retry_max_attempts: int = Field(default=4, gt=0)
+    pncp_retry_base_delay_seconds: float = Field(default=0.5, gt=0)
+    pncp_retry_max_delay_seconds: float = Field(default=8.0, gt=0)
 
     @property
     def database_url(self) -> str:
