@@ -597,7 +597,7 @@ Run:
 
 ```powershell
 git diff --check
-rg --fixed-strings -- "- [ ]" docs/superpowers/plans/2026-08-17-phase-3-raw-layer.md
+rg '^- \[ \]' docs/superpowers/plans/2026-08-17-phase-3-raw-layer.md
 git status --short
 ```
 
