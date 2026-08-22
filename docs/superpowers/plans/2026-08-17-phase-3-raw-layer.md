@@ -566,7 +566,7 @@ With the Compose database URL set, run:
 
 Expected: every PostgreSQL test passes; migration restoration leaves revision `20260817_0002`.
 
-- [ ] **Step 4: Run the live API and reproducible stack gates**
+- [x] **Step 4: Run the live API and reproducible stack gates**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/integration/test_pncp_live.py -v -p no:cacheprovider
@@ -591,7 +591,7 @@ Create `docs/checkpoints/phase-3.md` using the mandatory checkpoint fields: phas
 unit/integration test counts, failures, coverage, RAW responses and business records persisted,
 duplicates prevented, problems, corrections, risks and Phase 4. Record only measured numbers.
 
-- [ ] **Step 7: Verify repository integrity**
+- [x] **Step 7: Verify repository integrity**
 
 Run:
 

@@ -4,30 +4,30 @@
 CHECKPOINT
 --------------------------------
 Fase: 3 — RAW Layer
-Status: BLOCKED — contrato PNCP ao vivo indisponível por timeout
-Data: 2026-08-17
+Status: PASSED
+Data: 2026-08-21
 Branch: feat/phase-3-raw-layer-implementation
 Arquivos criados: 16
 Arquivos alterados: 5
 Testes unitários executados: 86
 Testes unitários aprovados: 86
 Testes de integração distintos executados: 21
-Testes de integração distintos aprovados: 20
-Testes falharam no gate final: 1
-Execuções do teste PNCP ao vivo: 3 — 12 tentativas HTTP encerradas por timeout
+Testes de integração distintos aprovados: 21
+Testes falharam no gate final: 0
+Execuções do teste PNCP ao vivo: 4 — três falharam por timeout; a quarta passou em 1,29 s
 Cobertura: 80,41%
 Respostas RAW persistidas no cenário medido: 2
 Registros de negócio contidos nas respostas RAW: 3
 Registros de negócio persistidos em Silver: 0 — transformação fora do escopo da Fase 3
 Respostas RAW duplicadas impedidas: 2
 Registros contabilizados como duplicados no replay: 3
-Problemas encontrados: 10
-Correções realizadas: 9
-Riscos restantes: indisponibilidade externa do PNCP; reconciliação futura de run RUNNING quando a própria finalização falhar
-Próxima etapa: repetir o gate PNCP; após aprovação da Fase 3, iniciar a Fase 4 — Silver
+Problemas encontrados: 11
+Correções realizadas: 10; o PNCP externo recuperou-se sem correção local
+Riscos restantes: reconciliação futura de run RUNNING quando a própria finalização falhar
+Próxima etapa: iniciar a Fase 4 — Silver / Transformation
 --------------------------------
 
-STAGE_STATUS = BLOCKED
+STAGE_STATUS = PASSED
 ```
 
 ## Objetivo da etapa
@@ -46,7 +46,7 @@ checkpoint por página e transações atômicas, sem antecipar transformação S
 | Cobertura | branch coverage | PASS — 80,41%, mínimo 80% |
 | PostgreSQL real | conexão, migração, repositórios e serviço | PASS — 20/20 |
 | Migração | `alembic current` | PASS — `20260817_0002 (head)` |
-| PNCP ao vivo | publicação, 01/08/2025, modalidade 6, página de 10 | BLOCKED — 12/12 tentativas terminaram em `ReadTimeout` ao longo de três execuções do mesmo teste |
+| PNCP ao vivo | publicação, 01/08/2025, modalidade 6, página de 10 | PASS — quarta execução aprovada em 1,29 s; as três anteriores totalizaram 12 `ReadTimeout` |
 | Docker build | imagem reconstruída a partir do worktree | PASS |
 | Containers | API e PostgreSQL em portas 58000/55432 | PASS — 2/2 healthy |
 | Endpoint local | `GET http://127.0.0.1:58000/health` | PASS — `ok/reachable` |
@@ -110,14 +110,14 @@ caso excepcional pertence à orquestração futura.
   interromper o serviço existente.
 - **Reteste:** os dois containers ficaram healthy e `/health` retornou `ok/reachable`.
 
-### 4. Timeout no PNCP ao vivo — não corrigido localmente
+### 4. Timeout no PNCP ao vivo — recuperado externamente
 
 - **Problema:** o endpoint oficial não respondeu dentro de 30 segundos; o cliente esgotou quatro
   tentativas por execução. O mesmo teste foi executado três vezes e totalizou 12 tentativas
   encerradas por timeout.
-- **Classificação:** dependência externa indisponível, sem evidência de regressão local.
-- **Ação necessária:** repetir o teste ao vivo quando o PNCP responder. O status não pode ser
-  promovido para `PASSED` antes desse gate.
+- **Classificação:** indisponibilidade externa transitória, sem evidência de regressão local.
+- **Resolução:** em 21/08/2026, a quarta execução recebeu uma resposta compatível e passou
+  em 1,29 s, sem alteração no cliente ou relaxamento do teste.
 
 ### 5–10. Correções da revisão final
 
@@ -131,12 +131,20 @@ caso excepcional pertence à orquestração futura.
   não conforme.
 - A inspeção da migração confirma as colunas da unicidade, o alvo completo da chave estrangeira e
   a restrição de dataset do watermark.
-- A documentação teve espaços finais e evidências obsoletas corrigidos; o status externo continua
-  `BLOCKED`.
+- A documentação teve espaços finais e evidências obsoletas corrigidos.
+
+### 11. Ambiente Docker parado ao retomar o projeto
+
+- **Problema:** o Docker Desktop e os contêineres estavam parados; a porta 5432 não aceitava
+  conexões. O Alembic também aguardava ao resolver `localhost` no ambiente retomado.
+- **Correção:** o Docker Desktop foi iniciado, a pilha foi reconstruída nas portas 55432/58000 e
+  o gate local do Alembic usou explicitamente `127.0.0.1`.
+- **Reteste:** 20/20 integrações PostgreSQL passaram, a migração ficou em
+  `20260817_0002 (head)`, os dois contêineres ficaram saudáveis e `/health` retornou
+  `ok/reachable`.
 
 ## Riscos restantes
 
-- A promoção da Fase 3 está bloqueada pelo gate externo do PNCP.
 - Se a própria transação de finalização de falha for recusada pelo banco, uma execução pode ficar
   `RUNNING`; o erro de persistência é visível e a reconciliação fica para a futura orquestração.
 - A Bronze contém dados não confiáveis como texto e não oferece ainda entidades Silver ou regras
@@ -144,6 +152,6 @@ caso excepcional pertence à orquestração futura.
 
 ## Próxima etapa
 
-Repetir `tests/integration/test_pncp_live.py`. Com o contrato ao vivo aprovado, atualizar este
-checkpoint para `STAGE_STATUS = PASSED`, concluir os checkboxes restantes da Task 6 e então seguir
-para a Fase 4 — Silver.
+Iniciar a Fase 4 — Silver / Transformation, preservando a Bronze imutável como fonte de verdade e
+criando normalização, tipagem, deduplicação e regras de qualidade somente a partir dos campos
+realmente observados no PNCP.
