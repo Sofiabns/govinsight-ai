@@ -23,7 +23,7 @@ Respostas RAW duplicadas impedidas: 2
 Registros contabilizados como duplicados no replay: 3
 Problemas encontrados: 11
 Correções realizadas: 10; o PNCP externo recuperou-se sem correção local
-Riscos restantes: reconciliação futura de run RUNNING quando a própria finalização falhar
+Riscos restantes: dependência da disponibilidade externa do PNCP; reconciliação futura de run RUNNING quando a própria finalização falhar
 Próxima etapa: iniciar a Fase 4 — Silver / Transformation
 --------------------------------
 
@@ -145,6 +145,9 @@ caso excepcional pertence à orquestração futura.
 
 ## Riscos restantes
 
+- A execução ao vivo continua dependente da disponibilidade operacional do PNCP; o histórico de
+  três timeouts antes da aprovação demonstra que essa dependência externa pode bloquear novas
+  coletas mesmo sem regressão local.
 - Se a própria transação de finalização de falha for recusada pelo banco, uma execução pode ficar
   `RUNNING`; o erro de persistência é visível e a reconciliação fica para a futura orquestração.
 - A Bronze contém dados não confiáveis como texto e não oferece ainda entidades Silver ou regras
