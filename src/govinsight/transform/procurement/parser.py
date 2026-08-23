@@ -11,7 +11,11 @@ from .models import NormalizedProcurement, ProcurementParseResult, RejectedProcu
 
 CNPJ_PATTERN = re.compile(r"^[0-9]{14}$")
 IBGE_PATTERN = re.compile(r"^[0-9]{7}$")
+NATURAL_KEY_PATTERN = re.compile(r"^[0-9]{14}-[0-9]-[0-9]{6}/[0-9]{4}$")
 UF_PATTERN = re.compile(r"^[A-Z]{2}$")
+MAX_POSTGRES_INTEGER = 2_147_483_647
+MAX_MONEY = Decimal("999999999999999.9999")
+MONEY_QUANTUM = Decimal("0.0001")
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
@@ -43,14 +47,18 @@ def _integer(value: object, errors: list[str], *, required: bool = False) -> int
         errors.append("INVALID_ID")
         return None
     try:
-        result = int(value)
-    except (TypeError, ValueError, OverflowError):
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
         errors.append("INVALID_ID")
         return None
-    if result <= 0:
+    if (
+        not decimal_value.is_finite()
+        or decimal_value != decimal_value.to_integral_value()
+        or not 0 < decimal_value <= MAX_POSTGRES_INTEGER
+    ):
         errors.append("INVALID_ID")
         return None
-    return result
+    return int(decimal_value)
 
 
 def _datetime(value: object, errors: list[str], *, required: bool = False) -> datetime | None:
@@ -83,7 +91,11 @@ def _decimal(value: object, errors: list[str]) -> Decimal | None:
     except (InvalidOperation, ValueError):
         errors.append("INVALID_DECIMAL")
         return None
-    if not result.is_finite() or result < 0:
+    try:
+        fits_scale = result == result.quantize(MONEY_QUANTUM)
+    except InvalidOperation:
+        fits_scale = False
+    if not result.is_finite() or result < 0 or result > MAX_MONEY or not fits_scale:
         errors.append("INVALID_DECIMAL")
         return None
     return result
@@ -128,7 +140,11 @@ def parse_procurement(
     organization = _mapping(record.get("orgaoEntidade"))
     unit = _mapping(record.get("unidadeOrgao"))
     legal_basis = _mapping(record.get("amparoLegal"))
-    natural_key = _optional_text(record.get("numeroControlePNCP"), errors)
+    natural_key_value = _optional_text(record.get("numeroControlePNCP"), errors)
+    natural_key = natural_key_value
+    if natural_key is not None and not NATURAL_KEY_PATTERN.fullmatch(natural_key):
+        errors.append("INVALID_NATURAL_KEY")
+        natural_key = None
     cnpj = _required_text(organization.get("cnpj"), errors)
     if cnpj is not None and not CNPJ_PATTERN.fullmatch(cnpj):
         errors.append("INVALID_CNPJ")
@@ -197,7 +213,7 @@ def parse_procurement(
         "valor_total_estimado": _decimal(record.get("valorTotalEstimado"), errors),
         "valor_total_homologado": _decimal(record.get("valorTotalHomologado"), errors),
     }
-    if natural_key is None and "INVALID_TEXT" not in errors:
+    if natural_key_value is None and "INVALID_TEXT" not in errors:
         errors.append("MISSING_REQUIRED")
     if errors:
         return ProcurementParseResult(

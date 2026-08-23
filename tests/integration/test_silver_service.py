@@ -1,8 +1,10 @@
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import UTC, date, datetime
 from pathlib import Path
+from threading import Barrier
 from uuid import uuid4
 
 import pytest
@@ -13,7 +15,12 @@ from govinsight.raw.hashing import request_fingerprint, sha256_text
 from govinsight.raw.models import RawCapture, RawDataset
 from govinsight.raw.repositories import RawResponseRepository, RunRepository
 from govinsight.raw.tables import etl_run, etl_watermark, raw_api_response
-from govinsight.transform.repositories import SilverWatermarkRepository
+from govinsight.transform.procurement import parse_procurement
+from govinsight.transform.repositories import (
+    ProcurementRepository,
+    SilverWatermarkRepository,
+    WriteOutcome,
+)
 from govinsight.transform.service import SilverTransformationService
 from govinsight.transform.tables import procurement, rejected_record
 
@@ -87,7 +94,9 @@ def _insert_raw(engine: Engine, body: str, identity: str) -> int:
 
 
 @pytest.mark.integration
-def test_silver_flow_quarantines_replays_updates_and_never_regresses(engine: Engine) -> None:
+def test_silver_flow_quarantines_replays_updates_and_never_regresses(
+    engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
     base = json.loads(FIXTURE.read_text(encoding="utf-8"))["data"][0]
     invalid = deepcopy(base)
     invalid["orgaoEntidade"]["cnpj"] = "invalid"
@@ -149,10 +158,29 @@ def test_silver_flow_quarantines_replays_updates_and_never_regresses(engine: Eng
     assert final["objeto_compra"] == "OBJETO ATUALIZADO"
     assert final["source_raw_response_id"] == second_raw_id
 
-    too_large = deepcopy(base)
-    too_large["numeroControlePNCP"] = "13183513000127-1-000147/2025"
-    too_large["valorTotalEstimado"] = "100000000000000000000"
-    failing_raw_id = _insert_raw(engine, _body(too_large), f"{identity}-d")
+    valid_sibling = deepcopy(newer)
+    valid_sibling["numeroControlePNCP"] = "13183513000127-1-000147/2025"
+    overflow = deepcopy(base)
+    overflow["numeroControlePNCP"] = "13183513000127-1-000148/2025"
+    overflow["valorTotalEstimado"] = "1000000000000000"
+    fourth_raw_id = _insert_raw(engine, _body(valid_sibling, overflow), f"{identity}-d")
+    fourth = service.transform_pending()
+    assert (fourth.inserted, fourth.rejected, fourth.last_raw_response_id) == (
+        1,
+        1,
+        fourth_raw_id,
+    )
+
+    failing = deepcopy(base)
+    failing["numeroControlePNCP"] = "13183513000127-1-000149/2025"
+    failing_raw_id = _insert_raw(engine, _body(failing), f"{identity}-e")
+    original_upsert = service._procurements.upsert
+
+    def fail_after_write(connection: sa.Connection, value: object) -> object:
+        original_upsert(connection, value)  # type: ignore[arg-type]
+        raise sa.exc.DataError("forced rollback", {}, ValueError("sentinel"))
+
+    monkeypatch.setattr(service._procurements, "upsert", fail_after_write)
     with pytest.raises(sa.exc.DataError):
         service.transform_pending()
     with engine.connect() as connection:
@@ -166,9 +194,9 @@ def test_silver_flow_quarantines_replays_updates_and_never_regresses(engine: Eng
         failed_key_count = connection.execute(
             sa.select(sa.func.count())
             .select_from(procurement)
-            .where(procurement.c.numero_controle_pncp == too_large["numeroControlePNCP"])
+            .where(procurement.c.numero_controle_pncp == failing["numeroControlePNCP"])
         ).scalar_one()
-    assert watermark == {"last_raw_response_id": third_raw_id}
+    assert watermark == {"last_raw_response_id": fourth_raw_id}
     assert failed_key_count == 0
     assert failing_raw_id > third_raw_id
 
@@ -189,3 +217,46 @@ def test_silver_flow_quarantines_replays_updates_and_never_regresses(engine: Eng
                 etl_watermark.c.stage == "silver",
             )
         )
+
+
+@pytest.mark.integration
+def test_procurement_upsert_is_safe_for_concurrent_first_insert(engine: Engine) -> None:
+    record = json.loads(FIXTURE.read_text(encoding="utf-8"))["data"][0]
+    identity = uuid4().hex
+    sequence = int(identity[:8], 16) % 1_000_000
+    record["numeroControlePNCP"] = f"13183513000127-1-{sequence:06d}/2025"
+    raw_id = _insert_raw(engine, _body(record), f"{identity}-concurrent")
+    parsed = parse_procurement(record, raw_response_id=raw_id, record_index=0)
+    assert parsed.procurement is not None
+    barrier = Barrier(2)
+
+    def write() -> WriteOutcome:
+        with engine.begin() as connection:
+            barrier.wait()
+            return ProcurementRepository().upsert(connection, parsed.procurement)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(lambda _: write(), range(2)))
+
+    assert sorted(outcomes) == [WriteOutcome.INSERTED, WriteOutcome.UNCHANGED]
+    with engine.connect() as connection:
+        count = connection.execute(
+            sa.select(sa.func.count())
+            .select_from(procurement)
+            .where(procurement.c.numero_controle_pncp == record["numeroControlePNCP"])
+        ).scalar_one()
+    assert count == 1
+
+    with engine.begin() as connection:
+        run_ids = sa.select(etl_run.c.id).where(
+            etl_run.c.pipeline_name.like(f"silver-test-{identity}%")
+        )
+        connection.execute(
+            procurement.delete().where(
+                procurement.c.numero_controle_pncp == record["numeroControlePNCP"]
+            )
+        )
+        connection.execute(
+            raw_api_response.delete().where(raw_api_response.c.etl_run_id.in_(run_ids))
+        )
+        connection.execute(etl_run.delete().where(etl_run.c.id.in_(run_ids)))

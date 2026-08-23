@@ -9,16 +9,16 @@ Data: 2026-08-23
 Branch: feat/phase-4-silver-transformation-implementation
 Arquivos criados: 15
 Arquivos alterados: 1
-Testes locais executados: 88
-Testes PostgreSQL executados: 22
-Testes aprovados no gate final: 110/110
+Testes locais executados: 89
+Testes PostgreSQL executados: 23
+Testes aprovados no gate final: 112/112
 Teste PNCP ao vivo: 1 não executado por estar fora do escopo
-Cobertura final: 89,84%
-Respostas RAW confirmadas no cenário Silver: 3
-Registros inseridos/atualizados/inalterados/rejeitados: 1/1/1/1
+Cobertura final: 90,48%
+Respostas RAW confirmadas no cenário Silver: 4
+Registros inseridos/atualizados/inalterados/rejeitados: 2/1/1/2
 Falhas funcionais no gate final: 0
-Problemas encontrados: 6
-Correções realizadas: 6
+Problemas encontrados: 10
+Correções realizadas: 10
 Próxima etapa: ampliar a Silver e formalizar qualidade e integridade antes da Gold
 --------------------------------
 
@@ -43,13 +43,13 @@ causam regressão e replays sem novos dados não produzem escrita.
 | `ruff check .` | PASS — zero erros |
 | `ruff format --check .` | PASS — 63 arquivos formatados |
 | Suíte local isolada | PASS funcional — 88/88; cobertura isolada de 71,32% |
-| Suíte combinada local + PostgreSQL | PASS — 110/110; 1 teste externo não executado |
-| Cobertura combinada | PASS — 89,84%, mínimo 80% |
+| Suíte combinada local + PostgreSQL | PASS — 112/112; 1 teste externo não executado |
+| Cobertura combinada | PASS — 90,48%, mínimo 80% |
 | Migração | PASS — `20260823_0003 (head)` |
 | PNCP ao vivo | Não repetido — a fase consome Bronze local |
 
 A cobertura isolada não alcança o limite porque repositórios e serviços transacionais são exercidos
-com PostgreSQL real. A medição representativa combina os mesmos 88 testes locais com 22 integrações,
+com PostgreSQL real. A medição representativa combina 89 testes locais com 23 integrações,
 sem criar testes artificiais ou duplicados para inflar o índice.
 
 ## Cenário Silver medido
@@ -59,11 +59,12 @@ sem criar testes artificiais ou duplicados para inflar o índice.
 2. Um replay imediato processou zero respostas.
 3. Uma versão mais nova atualizou a contratação.
 4. Uma versão mais antiga foi contabilizada como inalterada e não regrediu o estado atual.
-5. Uma escrita monetária incompatível provocou rollback real; não criou linha parcial nem avançou
-   o watermark.
+5. Um valor monetário fora do schema foi colocado em quarentena sem impedir a irmã válida.
+6. Uma falha de repositório injetada após a escrita provocou rollback real; não criou linha parcial
+   nem avançou o watermark.
 
-Contagem confirmada nas três respostas concluídas: 1 inserido, 1 atualizado, 1 inalterado e
-1 rejeitado. A quarta resposta deliberadamente falha permaneceu pendente para retomada.
+Contagem confirmada nas quatro respostas concluídas: 2 inseridos, 1 atualizado, 1 inalterado e
+2 rejeitados. A quinta resposta deliberadamente falha permaneceu pendente para retomada.
 
 ## BUG HUNT compacto
 
@@ -90,6 +91,14 @@ Contagem confirmada nas três respostas concluídas: 1 inserido, 1 atualizado, 1
 - Nove arquivos precisavam da formatação configurada; o formatador do projeto os normalizou.
 - A consulta Alembic usava a porta padrão; host e porta do PostgreSQL isolado foram definidos
   explicitamente e o head foi confirmado.
+- Inteiros fracionários ou acima do limite e valores fora de `numeric(19,4)` chegavam ao banco;
+  agora são rejeitados individualmente pelo parser com códigos estáveis.
+- O primeiro insert concorrente usava leitura seguida de escrita; foi substituído por um único
+  UPSERT PostgreSQL condicional e comprovado com dois workers simultâneos.
+- Uma chave PNCP malformada podia ser copiada para a quarentena; agora ela gera
+  `INVALID_NATURAL_KEY` e a coluna segura permanece nula.
+- Watermark SQL nula podia ser confundida com linha ausente; o repositório agora distingue os
+  estados e rejeita JSON nulo ou malformado.
 
 ## Riscos e limites restantes
 

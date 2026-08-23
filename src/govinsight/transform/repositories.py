@@ -53,41 +53,37 @@ class ProcurementRepository:
         connection: Connection,
         value: NormalizedProcurement,
     ) -> WriteOutcome:
-        current = (
-            connection.execute(
-                sa.select(
-                    procurement.c.normalized_sha256,
-                    procurement.c.data_atualizacao_global,
-                    procurement.c.source_raw_response_id,
-                )
-                .where(procurement.c.numero_controle_pncp == value.numero_controle_pncp)
-                .with_for_update()
-            )
-            .mappings()
-            .one_or_none()
-        )
         now = datetime.now(UTC)
         values = value.model_dump()
-        if current is None:
-            connection.execute(
-                procurement.insert().values(**values, created_at=now, updated_at=now)
-            )
-            return WriteOutcome.INSERTED
-        if current["normalized_sha256"] == value.normalized_sha256:
-            return WriteOutcome.UNCHANGED
-        incoming_is_newer = value.data_atualizacao_global > current["data_atualizacao_global"]
-        incoming_breaks_tie = (
-            value.data_atualizacao_global == current["data_atualizacao_global"]
-            and value.source_raw_response_id > current["source_raw_response_id"]
+        insert = postgresql.insert(procurement).values(
+            **values,
+            created_at=now,
+            updated_at=now,
         )
-        if not (incoming_is_newer or incoming_breaks_tie):
-            return WriteOutcome.UNCHANGED
-        connection.execute(
-            procurement.update()
-            .where(procurement.c.numero_controle_pncp == value.numero_controle_pncp)
-            .values(**values, updated_at=now)
+        incoming_is_newer = (
+            insert.excluded.data_atualizacao_global > procurement.c.data_atualizacao_global
         )
-        return WriteOutcome.UPDATED
+        incoming_breaks_tie = sa.and_(
+            insert.excluded.data_atualizacao_global == procurement.c.data_atualizacao_global,
+            insert.excluded.source_raw_response_id > procurement.c.source_raw_response_id,
+        )
+        update_values = {
+            key: getattr(insert.excluded, key) for key in values if key != "numero_controle_pncp"
+        }
+        update_values["updated_at"] = insert.excluded.updated_at
+        was_inserted = connection.execute(
+            insert.on_conflict_do_update(
+                index_elements=[procurement.c.numero_controle_pncp],
+                set_=update_values,
+                where=sa.and_(
+                    insert.excluded.normalized_sha256 != procurement.c.normalized_sha256,
+                    sa.or_(incoming_is_newer, incoming_breaks_tie),
+                ),
+            ).returning(sa.literal_column("(xmax = 0)"))
+        ).scalar_one_or_none()
+        if was_inserted is None:
+            return WriteOutcome.UNCHANGED
+        return WriteOutcome.INSERTED if was_inserted else WriteOutcome.UPDATED
 
 
 class RejectedRecordRepository:
@@ -119,9 +115,10 @@ class SilverWatermarkRepository:
         statement = sa.select(etl_watermark.c.watermark_value).where(*self._key())
         if lock:
             statement = statement.with_for_update()
-        value = connection.execute(statement).scalar_one_or_none()
-        if value is None:
+        row = connection.execute(statement).one_or_none()
+        if row is None:
             return 0
+        value = row.watermark_value
         raw_id = value.get("last_raw_response_id") if isinstance(value, dict) else None
         if not isinstance(raw_id, int) or raw_id < 0:
             raise SilverStateError("invalid Silver watermark")
