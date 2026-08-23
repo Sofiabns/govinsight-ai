@@ -42,3 +42,23 @@ def test_invalid_record_returns_only_safe_deterministic_codes() -> None:
     assert result.rejection.error_codes == ("INCONSISTENT_DATE_RANGE", "INVALID_CNPJ")
     assert result.rejection.natural_key == "13183513000127-1-000146/2025"
     assert "SENSITIVE-CNPJ" not in repr(result.rejection)
+
+
+def test_schema_incompatible_values_are_safely_rejected() -> None:
+    invalid = deepcopy(_record())
+    invalid["numeroControlePNCP"] = "SENSITIVE-NATURAL-KEY"
+    invalid["modalidadeId"] = 1.5
+    invalid["sequencialCompra"] = 2_147_483_648
+    invalid["valorTotalEstimado"] = "1000000000000000"
+
+    result = parse_procurement(invalid, raw_response_id=41, record_index=2)
+
+    assert result.procurement is None
+    assert result.rejection is not None
+    assert result.rejection.natural_key is None
+    assert result.rejection.error_codes == (
+        "INVALID_DECIMAL",
+        "INVALID_ID",
+        "INVALID_NATURAL_KEY",
+    )
+    assert "SENSITIVE-NATURAL-KEY" not in repr(result.rejection)
