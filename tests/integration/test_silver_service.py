@@ -18,6 +18,7 @@ from govinsight.raw.tables import etl_run, etl_watermark, raw_api_response
 from govinsight.transform.procurement import parse_procurement
 from govinsight.transform.repositories import (
     ProcurementRepository,
+    SilverStateError,
     SilverWatermarkRepository,
     WriteOutcome,
 )
@@ -260,3 +261,30 @@ def test_procurement_upsert_is_safe_for_concurrent_first_insert(engine: Engine) 
             raw_api_response.delete().where(raw_api_response.c.etl_run_id.in_(run_ids))
         )
         connection.execute(etl_run.delete().where(etl_run.c.id.in_(run_ids)))
+
+
+@pytest.mark.integration
+def test_silver_watermark_distinguishes_absent_and_invalid_state(engine: Engine) -> None:
+    repository = SilverWatermarkRepository()
+    key = sa.and_(
+        etl_watermark.c.pipeline_name == "silver_procurement",
+        etl_watermark.c.dataset == "procurements",
+        etl_watermark.c.stage == "silver",
+    )
+    with engine.begin() as connection:
+        connection.execute(etl_watermark.delete().where(key))
+        assert repository.current(connection) == 0
+
+        for invalid in (None, {}, {"last_raw_response_id": "1"}):
+            connection.execute(
+                etl_watermark.insert().values(
+                    pipeline_name="silver_procurement",
+                    dataset="procurements",
+                    stage="silver",
+                    watermark_value=invalid,
+                    confirmed_at=datetime.now(UTC),
+                )
+            )
+            with pytest.raises(SilverStateError, match="invalid Silver watermark"):
+                repository.current(connection)
+            connection.execute(etl_watermark.delete().where(key))
