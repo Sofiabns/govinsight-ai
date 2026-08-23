@@ -249,7 +249,7 @@ git commit -m "feat: create silver procurement schema"
 - Produces: counters `responses_processed`, `records_received`, `inserted`, `updated`, `unchanged`,
   `rejected` and `last_raw_response_id`.
 
-- [ ] **Step 1: Write one end-to-end failing integration test**
+- [x] **Step 1: Write one end-to-end failing integration test**
 
 Insert real Bronze response A containing one valid fixture record plus one invalid record. Execute
 the service and assert one procurement, one quarantine, safe codes, exact lineage and watermark A.
@@ -260,13 +260,13 @@ response C with an older update time and assert the newer Silver state does not 
 Finally force a repository exception while processing another response and assert Silver writes
 and watermark advancement both roll back.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `pytest tests/integration/test_silver_service.py -v -p no:cacheprovider`
 
 Expected: collection fails because the repositories and service do not exist.
 
-- [ ] **Step 3: Implement repositories**
+- [x] **Step 3: Implement repositories**
 
 Required method signatures:
 
@@ -289,14 +289,14 @@ Return `inserted`, `updated` or `unchanged` from deterministic SQL results. Quar
 do nothing on the source-record unique constraint. Watermark uses the fixed key from the spec and
 never moves backward.
 
-- [ ] **Step 4: Implement service transaction flow**
+- [x] **Step 4: Implement service transaction flow**
 
 For each pending Bronze row, open `engine.begin()`, lock/read the watermark, re-check that the RAW
 id is still pending, decode `raw_body`, require an object with list-valued `data`, parse every
 record, write valid/quarantined results and advance the watermark. Envelope errors raise a safe
 `SilverEnvelopeError(raw_response_id, code)` with no payload. Return frozen measured counters.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: `pytest tests/integration/test_silver_service.py -v -p no:cacheprovider`
 
@@ -304,7 +304,7 @@ Run: `pytest tests/unit/transform/test_procurement.py tests/integration/test_sil
 
 Expected: focused Silver suite passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add src/govinsight/transform tests/integration/test_silver_service.py
