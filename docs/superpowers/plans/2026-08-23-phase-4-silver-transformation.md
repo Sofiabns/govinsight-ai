@@ -174,7 +174,7 @@ git commit -m "feat: add typed procurement normalization"
 - Produces: SQLAlchemy tables `procurement` and `rejected_record`.
 - Produces: Alembic revision `20260823_0003`, down revision `20260817_0002`.
 
-- [ ] **Step 1: Write the migration test first**
+- [x] **Step 1: Write the migration test first**
 
 Upgrade from `20260817_0002` to head on real PostgreSQL. Reflect both Silver tables and assert:
 
@@ -191,7 +191,7 @@ Also assert the two RAW foreign keys, quarantine uniqueness, hash/CNPJ/IBGE/UF c
 non-negative checks. Downgrade to `20260817_0002`, confirm both Silver tables disappear, then
 restore head in `finally`.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run with `GOVINSIGHT_DATABASE_URL` set:
 
@@ -199,7 +199,7 @@ Run with `GOVINSIGHT_DATABASE_URL` set:
 
 Expected: FAIL because revision `20260823_0003` and Silver tables do not exist.
 
-- [ ] **Step 3: Implement table metadata and migration**
+- [x] **Step 3: Implement table metadata and migration**
 
 Create `silver.procurement` with text natural-key PK, lineage FK/index, typed business columns,
 `numeric(19,4)` money, naive PNCP timestamps, normalized hash, and timezone-aware audit timestamps.
@@ -220,13 +220,13 @@ uq_silver_rejected_source_record: (source_raw_response_id, source_record_index)
 
 Downgrade drops quarantine first, then procurement.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `pytest tests/integration/test_silver_migration.py -v -p no:cacheprovider`
 
 Expected: migration test passes and restores `20260823_0003 (head)`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src/govinsight/transform/tables.py alembic/versions/20260823_0003_create_silver_procurement.py tests/integration/test_silver_migration.py
