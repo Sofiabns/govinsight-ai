@@ -42,7 +42,7 @@ watermark advances atomically after both operations.
   ProcurementParseResult`.
 - Produces: `NormalizedProcurement`, `RejectedProcurement`, `ProcurementParseResult`.
 
-- [ ] **Step 1: Write the focused failing test**
+- [x] **Step 1: Write the focused failing test**
 
 Use the real procurement fixture. Assert that the first record becomes a normalized object with
 `numero_controle_pncp`, `Decimal("0.0")`, nullable homologated value, naive datetimes, stripped
@@ -62,13 +62,13 @@ assert rejected.rejection.error_codes == ("INCONSISTENT_DATE_RANGE", "INVALID_CN
 assert "131835" not in repr(rejected.rejection)
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `pytest tests/unit/transform/test_procurement.py -v -p no:cacheprovider`
 
 Expected: collection fails because `govinsight.transform.procurement` does not exist.
 
-- [ ] **Step 3: Implement immutable models and parser**
+- [x] **Step 3: Implement immutable models and parser**
 
 Define frozen Pydantic models. `NormalizedProcurement` contains the fields listed in the spec,
 using snake_case names, `Decimal | None`, `datetime | None`, `date` only where the PNCP field is a
@@ -145,7 +145,7 @@ or Pydantic messages. Hash canonical JSON with sorted keys, UTF-8 and compact se
 typed business values are serialized to strings; exclude lineage fields and `normalized_sha256`
 itself from the hash input.
 
-- [ ] **Step 4: Run GREEN and quality checks**
+- [x] **Step 4: Run GREEN and quality checks**
 
 Run: `pytest tests/unit/transform/test_procurement.py -v -p no:cacheprovider`
 
@@ -153,7 +153,7 @@ Run: `ruff check src/govinsight/transform tests/unit/transform`
 
 Expected: focused tests and lint pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src/govinsight/transform tests/unit/transform
