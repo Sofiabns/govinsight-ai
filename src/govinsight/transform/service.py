@@ -108,4 +108,3 @@ class SilverTransformationService:
             rejected=rejected,
             last_raw_response_id=last_raw_response_id,
         )
-

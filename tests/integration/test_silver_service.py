@@ -178,7 +178,9 @@ def test_silver_flow_quarantines_replays_updates_and_never_regresses(engine: Eng
         )
         connection.execute(rejected_record.delete())
         connection.execute(procurement.delete())
-        connection.execute(raw_api_response.delete().where(raw_api_response.c.etl_run_id.in_(run_ids)))
+        connection.execute(
+            raw_api_response.delete().where(raw_api_response.c.etl_run_id.in_(run_ids))
+        )
         connection.execute(etl_run.delete().where(etl_run.c.id.in_(run_ids)))
         connection.execute(
             etl_watermark.delete().where(

@@ -77,4 +77,3 @@ class ProcurementParseResult(BaseModel):
         if (self.procurement is None) == (self.rejection is None):
             raise ValueError("parse result requires exactly one outcome")
         return self
-

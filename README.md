@@ -6,19 +6,18 @@ through APIs, dashboards, and guarded AI agents.
 
 ## Current status
 
-**Phase 3 — RAW Layer** adds immutable PostgreSQL Bronze storage for exact successful PNCP
-responses, auditable ingestion runs and resumable extraction checkpoints. Procurement and
-contract collection support publication and update modes while preserving the Phase 2 client
-interfaces.
+**Phase 4 — Silver / Transformation** converts immutable PNCP procurement responses into a typed,
+deduplicated current-state table. Invalid records are quarantined with safe reason codes, and a
+monotonic watermark makes each bounded run incremental and replay-safe.
 
 ## Architecture foundation
 
 ```text
-FastAPI -> SQLAlchemy/psycopg -> PostgreSQL 16
-             |                     |
-        Pydantic Settings      Alembic schemas
-             |
-       Structlog JSON
+PNCP -> Bronze RAW -> Silver transformation -> PostgreSQL 16
+          |                  |                |
+     exact responses    Pydantic rules    typed current state
+                              |
+                       safe quarantine
 ```
 
 The initial migration creates the `bronze`, `silver`, `gold`, and `control` schemas. It does
@@ -82,7 +81,7 @@ PostgreSQL integration test, with the Compose stack running:
 
 ```powershell
 $env:GOVINSIGHT_DATABASE_URL = "postgresql+psycopg://govinsight_app:govinsight_local@127.0.0.1:5432/govinsight?connect_timeout=5"
-.\.venv\Scripts\python.exe -m pytest -p no:cacheprovider tests/integration/test_postgres.py -v
+.\.venv\Scripts\python.exe -m pytest -m integration -p no:cacheprovider -v
 Remove-Item Env:GOVINSIGHT_DATABASE_URL
 ```
 
@@ -181,6 +180,33 @@ scope, including page size, so an interrupted extraction can resume safely. It i
 untouched until downstream Silver, Gold and critical quality gates can confirm progress. Phase 3
 stores RAW responses only; it performs no Silver transformation or business-record upsert.
 
+## Silver transformation
+
+After RAW ingestion, transform at most 100 pending procurement responses in one bounded call:
+
+```python
+from govinsight.config import Settings
+from govinsight.database.session import create_database_engine
+from govinsight.transform import SilverTransformationService
+
+engine = create_database_engine(Settings())
+try:
+    result = SilverTransformationService(engine).transform_pending(limit=100)
+    print(result.model_dump())
+finally:
+    engine.dispose()
+```
+
+Each RAW response is atomic: normalized rows, quarantined records and its watermark commit
+together or all roll back. `silver.procurement` keeps the latest valid PNCP version using the
+source update timestamp and RAW id as a deterministic tie-breaker. Invalid CNPJ, identifiers,
+dates or required fields go to `silver.rejected_record` with reason codes; rejected payloads are
+not copied into errors or operational logs.
+
+Re-running with no new RAW data processes zero responses. Newer records update the current state,
+older versions never regress it, and a failed response leaves the watermark at the last confirmed
+RAW id so a later run can resume safely.
+
 ## Project structure
 
 ```text
@@ -190,6 +216,7 @@ src/govinsight/api/       FastAPI application
 src/govinsight/database/  SQLAlchemy connectivity boundary
 src/govinsight/extract/   PNCP query, retry, client, and pagination boundaries
 src/govinsight/raw/       Bronze identities, repositories, and ingestion service
+src/govinsight/transform/ Silver typing, quality rules, repositories, and service
 src/govinsight/observability/ Structured logging
 tests/unit/               Fast deterministic tests
 tests/integration/        Real service contracts
@@ -197,7 +224,7 @@ tests/integration/        Real service contracts
 
 ## Current limitations
 
-- Phase 3 persists exact successful responses, not normalized Silver business records.
-- The end-to-end watermark remains untouched until downstream stages and quality gates succeed.
+- Silver currently covers procurement records; contract transformation is intentionally deferred.
+- Silver is a current-state operational model, not yet an analytical star schema.
 - No analytical tables, dashboard, or AI agents exist yet.
 - The Compose defaults are intended only for local development.

@@ -67,12 +67,8 @@ def upgrade() -> None:
         sa.Column("valor_total_homologado", sa.Numeric(19, 4)),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint(
-            "source_record_index >= 0", name="ck_silver_procurement_record_index"
-        ),
-        sa.CheckConstraint(
-            "orgao_cnpj ~ '^[0-9]{14}$'", name="ck_silver_procurement_cnpj"
-        ),
+        sa.CheckConstraint("source_record_index >= 0", name="ck_silver_procurement_record_index"),
+        sa.CheckConstraint("orgao_cnpj ~ '^[0-9]{14}$'", name="ck_silver_procurement_cnpj"),
         sa.CheckConstraint(
             "normalized_sha256 ~ '^[0-9a-f]{64}$'", name="ck_silver_procurement_hash"
         ),
@@ -130,12 +126,8 @@ def upgrade() -> None:
         sa.Column("error_codes", postgresql.ARRAY(sa.Text()), nullable=False),
         sa.Column("transformer_version", sa.Text(), nullable=False),
         sa.Column("rejected_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint(
-            "source_record_index >= 0", name="ck_silver_rejected_record_index"
-        ),
-        sa.CheckConstraint(
-            "cardinality(error_codes) > 0", name="ck_silver_rejected_error_codes"
-        ),
+        sa.CheckConstraint("source_record_index >= 0", name="ck_silver_rejected_record_index"),
+        sa.CheckConstraint("cardinality(error_codes) > 0", name="ck_silver_rejected_error_codes"),
         sa.ForeignKeyConstraint(
             ["source_raw_response_id"],
             ["bronze.raw_api_response.id"],
@@ -160,4 +152,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("rejected_record", schema="silver")
     op.drop_table("procurement", schema="silver")
-
