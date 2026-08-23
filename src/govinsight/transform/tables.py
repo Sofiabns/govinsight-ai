@@ -57,15 +57,9 @@ procurement = sa.Table(
     sa.Column("valor_total_homologado", sa.Numeric(19, 4)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-    sa.CheckConstraint(
-        "source_record_index >= 0", name="ck_silver_procurement_record_index"
-    ),
-    sa.CheckConstraint(
-        "orgao_cnpj ~ '^[0-9]{14}$'", name="ck_silver_procurement_cnpj"
-    ),
-    sa.CheckConstraint(
-        "normalized_sha256 ~ '^[0-9a-f]{64}$'", name="ck_silver_procurement_hash"
-    ),
+    sa.CheckConstraint("source_record_index >= 0", name="ck_silver_procurement_record_index"),
+    sa.CheckConstraint("orgao_cnpj ~ '^[0-9]{14}$'", name="ck_silver_procurement_cnpj"),
+    sa.CheckConstraint("normalized_sha256 ~ '^[0-9a-f]{64}$'", name="ck_silver_procurement_hash"),
     sa.CheckConstraint(
         "uf_sigla IS NULL OR uf_sigla ~ '^[A-Z]{2}$'", name="ck_silver_procurement_uf"
     ),
@@ -104,12 +98,8 @@ rejected_record = sa.Table(
     sa.Column("error_codes", postgresql.ARRAY(sa.Text()), nullable=False),
     sa.Column("transformer_version", sa.Text(), nullable=False),
     sa.Column("rejected_at", sa.DateTime(timezone=True), nullable=False),
-    sa.CheckConstraint(
-        "source_record_index >= 0", name="ck_silver_rejected_record_index"
-    ),
-    sa.CheckConstraint(
-        "cardinality(error_codes) > 0", name="ck_silver_rejected_error_codes"
-    ),
+    sa.CheckConstraint("source_record_index >= 0", name="ck_silver_rejected_record_index"),
+    sa.CheckConstraint("cardinality(error_codes) > 0", name="ck_silver_rejected_error_codes"),
     sa.UniqueConstraint(
         "source_raw_response_id",
         "source_record_index",
@@ -118,4 +108,3 @@ rejected_record = sa.Table(
     sa.Index("ix_silver_rejected_raw", "source_raw_response_id"),
     schema="silver",
 )
-

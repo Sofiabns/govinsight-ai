@@ -122,6 +122,7 @@ class NormalizedProcurement(BaseModel):
     valor_total_estimado: Decimal | None
     valor_total_homologado: Decimal | None
 
+
 class RejectedProcurement(BaseModel):
     model_config = ConfigDict(frozen=True)
     source_raw_response_id: int
@@ -129,6 +130,7 @@ class RejectedProcurement(BaseModel):
     natural_key: str | None
     error_codes: tuple[str, ...]
     transformer_version: str = "1"
+
 
 class ProcurementParseResult(BaseModel):
     procurement: NormalizedProcurement | None = None
@@ -183,7 +185,9 @@ assert inspector.get_pk_constraint("procurement", schema="silver")["constrained_
     "numero_controle_pncp"
 ]
 assert {c["name"] for c in inspector.get_columns("rejected_record", schema="silver")} >= {
-    "source_raw_response_id", "source_record_index", "error_codes"
+    "source_raw_response_id",
+    "source_record_index",
+    "error_codes",
 }
 ```
 
@@ -324,12 +328,12 @@ git commit -m "feat: add incremental silver transformation"
 - Consumes: fresh output from every Phase 4 gate.
 - Produces: reproducible Silver usage and truthful `STAGE_STATUS`.
 
-- [ ] **Step 1: Document one bounded Silver execution**
+- [x] **Step 1: Document one bounded Silver execution**
 
 Add README commands for migration and `SilverTransformationService(engine).transform_pending()`.
 Explain Bronze lineage, current-state semantics, quarantine, watermark and exclusions.
 
-- [ ] **Step 2: Run final gates once**
+- [x] **Step 2: Run final gates once**
 
 ```powershell
 .\.venv\Scripts\ruff.exe check .
@@ -347,18 +351,18 @@ With real PostgreSQL:
 Expected: lint/format clean, coverage at least 80%, all local/PostgreSQL tests pass and Alembic is
 `20260823_0003 (head)`. Do not rerun the live PNCP test because Phase 4 consumes local Bronze data.
 
-- [ ] **Step 3: Perform a compact BUG HUNT**
+- [x] **Step 3: Perform a compact BUG HUNT**
 
 Inspect only null money, naive timestamps, invalid sibling isolation, replay, older-source
 regression, transaction rollback, payload leakage and watermark mutation. Any real defect gets one
 focused regression before correction.
 
-- [ ] **Step 4: Write measured checkpoint and close plan**
+- [x] **Step 4: Write measured checkpoint and close plan**
 
 Record files, test counts, coverage, Bronze responses transformed, inserted/updated/unchanged/
 rejected counts, problems, corrections, risks and Phase 5. Mark checkboxes only after evidence.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run `git diff --check`, anchored unchecked-checkbox search and `git status --short`.
 

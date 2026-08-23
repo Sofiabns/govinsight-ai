@@ -5,9 +5,7 @@ from pathlib import Path
 
 from govinsight.transform.procurement import parse_procurement
 
-FIXTURE = (
-    Path(__file__).parents[2] / "fixtures" / "pncp" / "contratacoes_publicacao_page_1.json"
-)
+FIXTURE = Path(__file__).parents[2] / "fixtures" / "pncp" / "contratacoes_publicacao_page_1.json"
 
 
 def _record() -> dict[str, object]:

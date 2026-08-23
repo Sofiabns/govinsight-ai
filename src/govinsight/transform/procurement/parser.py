@@ -156,9 +156,7 @@ def parse_procurement(
         "poder_id": _optional_text(organization.get("poderId"), errors),
         "esfera_id": _optional_text(organization.get("esferaId"), errors),
         "ano_compra": _integer(record.get("anoCompra"), errors, required=True),
-        "sequencial_compra": _integer(
-            record.get("sequencialCompra"), errors, required=True
-        ),
+        "sequencial_compra": _integer(record.get("sequencialCompra"), errors, required=True),
         "numero_compra": _optional_text(record.get("numeroCompra"), errors),
         "codigo_unidade": _required_text(unit.get("codigoUnidade"), errors),
         "nome_unidade": _required_text(unit.get("nomeUnidade"), errors),
@@ -182,9 +180,7 @@ def parse_procurement(
             record.get("tipoInstrumentoConvocatorioNome"), errors
         ),
         "data_inclusao": _datetime(record.get("dataInclusao"), errors),
-        "data_publicacao_pncp": _datetime(
-            record.get("dataPublicacaoPncp"), errors, required=True
-        ),
+        "data_publicacao_pncp": _datetime(record.get("dataPublicacaoPncp"), errors, required=True),
         "data_atualizacao": _datetime(record.get("dataAtualizacao"), errors),
         "data_atualizacao_global": _datetime(
             record.get("dataAtualizacaoGlobal"), errors, required=True
@@ -193,16 +189,10 @@ def parse_procurement(
         "data_encerramento_proposta": closing,
         "processo": _optional_text(record.get("processo"), errors),
         "objeto_compra": _required_text(record.get("objetoCompra"), errors),
-        "informacao_complementar": _optional_text(
-            record.get("informacaoComplementar"), errors
-        ),
+        "informacao_complementar": _optional_text(record.get("informacaoComplementar"), errors),
         "link_sistema_origem": _optional_text(record.get("linkSistemaOrigem"), errors),
-        "link_processo_eletronico": _optional_text(
-            record.get("linkProcessoEletronico"), errors
-        ),
-        "justificativa_presencial": _optional_text(
-            record.get("justificativaPresencial"), errors
-        ),
+        "link_processo_eletronico": _optional_text(record.get("linkProcessoEletronico"), errors),
+        "justificativa_presencial": _optional_text(record.get("justificativaPresencial"), errors),
         "usuario_nome": _optional_text(record.get("usuarioNome"), errors),
         "valor_total_estimado": _decimal(record.get("valorTotalEstimado"), errors),
         "valor_total_homologado": _decimal(record.get("valorTotalHomologado"), errors),
@@ -228,4 +218,3 @@ def parse_procurement(
             **business,
         )
     )
-

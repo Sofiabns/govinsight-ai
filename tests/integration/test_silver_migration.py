@@ -50,8 +50,7 @@ def test_silver_migration_creates_constraints_and_downgrades_cleanly(
         ] == ["numero_controle_pncp"]
 
         procurement_checks = {
-            item["name"]
-            for item in inspector.get_check_constraints("procurement", schema="silver")
+            item["name"] for item in inspector.get_check_constraints("procurement", schema="silver")
         }
         assert procurement_checks >= PROCUREMENT_CHECKS
 
@@ -62,17 +61,14 @@ def test_silver_migration_creates_constraints_and_downgrades_cleanly(
         assert procurement_fk["referred_columns"] == ["id"]
 
         rejected_columns = {
-            column["name"]
-            for column in inspector.get_columns("rejected_record", schema="silver")
+            column["name"] for column in inspector.get_columns("rejected_record", schema="silver")
         }
         assert rejected_columns >= {
             "source_raw_response_id",
             "source_record_index",
             "error_codes",
         }
-        rejected_uniques = inspector.get_unique_constraints(
-            "rejected_record", schema="silver"
-        )
+        rejected_uniques = inspector.get_unique_constraints("rejected_record", schema="silver")
         assert any(
             item["column_names"] == ["source_raw_response_id", "source_record_index"]
             for item in rejected_uniques
