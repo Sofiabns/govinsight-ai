@@ -10,15 +10,15 @@ Branch: feat/phase-4-silver-transformation-implementation
 Arquivos criados: 15
 Arquivos alterados: 1
 Testes locais executados: 89
-Testes PostgreSQL executados: 23
-Testes aprovados no gate final: 112/112
+Testes PostgreSQL executados: 24
+Testes aprovados no gate final: 113/113
 Teste PNCP ao vivo: 1 não executado por estar fora do escopo
-Cobertura final: 90,48%
+Cobertura final: 90,86%
 Respostas RAW confirmadas no cenário Silver: 4
 Registros inseridos/atualizados/inalterados/rejeitados: 2/1/1/2
 Falhas funcionais no gate final: 0
-Problemas encontrados: 10
-Correções realizadas: 10
+Problemas encontrados: 12
+Correções realizadas: 12
 Próxima etapa: ampliar a Silver e formalizar qualidade e integridade antes da Gold
 --------------------------------
 
@@ -42,14 +42,14 @@ causam regressão e replays sem novos dados não produzem escrita.
 |---|---|
 | `ruff check .` | PASS — zero erros |
 | `ruff format --check .` | PASS — 63 arquivos formatados |
-| Suíte local isolada | PASS funcional — 88/88; cobertura isolada de 71,32% |
-| Suíte combinada local + PostgreSQL | PASS — 112/112; 1 teste externo não executado |
-| Cobertura combinada | PASS — 90,48%, mínimo 80% |
+| Suíte local isolada | PASS funcional — 89/89; cobertura isolada de 71,32% |
+| Suíte combinada local + PostgreSQL | PASS — 113/113; 1 teste externo não executado |
+| Cobertura combinada | PASS — 90,86%, mínimo 80% |
 | Migração | PASS — `20260823_0003 (head)` |
 | PNCP ao vivo | Não repetido — a fase consome Bronze local |
 
 A cobertura isolada não alcança o limite porque repositórios e serviços transacionais são exercidos
-com PostgreSQL real. A medição representativa combina 89 testes locais com 23 integrações,
+com PostgreSQL real. A medição representativa combina 89 testes locais com 24 integrações,
 sem criar testes artificiais ou duplicados para inflar o índice.
 
 ## Cenário Silver medido
@@ -99,6 +99,8 @@ Contagem confirmada nas quatro respostas concluídas: 2 inseridos, 1 atualizado,
   `INVALID_NATURAL_KEY` e a coluna segura permanece nula.
 - Watermark SQL nula podia ser confundida com linha ausente; o repositório agora distingue os
   estados e rejeita JSON nulo ou malformado.
+- A revisão final encontrou uma métrica local antiga no checkpoint e ausência de regressão direta
+  para watermark inválida; a métrica foi corrigida e o cenário passou com três estados inválidos.
 
 ## Riscos e limites restantes
 
