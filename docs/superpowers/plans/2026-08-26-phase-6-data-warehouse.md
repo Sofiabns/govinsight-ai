@@ -195,7 +195,7 @@ git commit -m "feat: create gold procurement star schema"
 - Consumes: Gold tables from Task 1, `silver.procurement`, and `control.etl_watermark`.
 - Produces: `WarehouseLoadStatus`, `WarehouseLoadResult`, `ReconciliationResult`, `WarehouseStateError`, `WarehouseWatermarkRepository`, and `WarehouseRepository`.
 
-- [ ] **Step 1: Write the failing repository-level integration scenario**
+- [x] **Step 1: Write the failing repository-level integration scenario**
 
 Seed two valid Silver rows and equal Silver/Quality watermarks, call repository methods in one transaction, and assert:
 
@@ -228,7 +228,7 @@ assert reconciliation.is_valid is True
 
 Query joined facts to prove every dimension key resolves and date roles point to the correct calendar rows.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\integration\test_warehouse_service.py::test_repository_builds_reconciled_star -q -p no:cacheprovider --tb=short
@@ -236,7 +236,7 @@ Query joined facts to prove every dimension key resolves and date roles point to
 
 Expected: FAIL because `govinsight.warehouse.models` and repository classes do not exist.
 
-- [ ] **Step 3: Implement immutable contracts**
+- [x] **Step 3: Implement immutable contracts**
 
 ```python
 class WarehouseLoadStatus(StrEnum):
@@ -291,7 +291,7 @@ class ReconciliationResult(BaseModel):
 
 `WarehouseStateError(code: str)` stores a safe `code` and uses it as its exception message. Export all four contracts from `warehouse/__init__.py`.
 
-- [ ] **Step 4: Implement strict watermark state**
+- [x] **Step 4: Implement strict watermark state**
 
 Use constants:
 
@@ -304,7 +304,7 @@ WAREHOUSE_PIPELINE = "gold_procurement"
 
 `WarehouseWatermarkRepository.read_state(connection, lock_gold=True)` must parse nonnegative integer `last_raw_response_id` values for Silver, Quality, and Gold, returning a frozen `WarehouseWatermarkState`. Missing rows mean zero; malformed JSON or negative values raise `WarehouseStateError("INVALID_WATERMARK")`. `advance(connection, raw_response_id)` performs a monotonic PostgreSQL upsert for the Gold key.
 
-- [ ] **Step 5: Implement set-based Type 1 upserts**
+- [x] **Step 5: Implement set-based Type 1 upserts**
 
 `WarehouseRepository.load_dimensions(connection: Connection) -> dict[str, int]` builds a concrete distinct SQLAlchemy select from `silver.procurement`, passes it to `postgresql.insert(target).from_select(target_columns, source_select)`, and applies `on_conflict_do_update` for organization, unit, and modality. It returns current total counts under keys `dates`, `organizations`, `units`, and `modalities`. Insert the union of distinct non-null calendar dates from publication/opening/closing timestamps into `dim_date` with deterministic:
 
@@ -316,13 +316,13 @@ iso_weekday = extract("isodow", source_date)
 
 Dimension conflict updates replace only current descriptive attributes and `updated_at`; primary/natural keys and `created_at` stay stable.
 
-- [ ] **Step 6: Implement fact upsert and reconciliation**
+- [x] **Step 6: Implement fact upsert and reconciliation**
 
 `WarehouseRepository.load_facts(connection: Connection) -> int` joins Silver to dimensions by natural keys and upserts by `numero_controle_pncp`. Update every mutable fact attribute, FK, lineage field, monetary measure, and `updated_at`; preserve `procurement_key` and `created_at`. Return the total fact count after the upsert so `rows_loaded` describes the reconciled snapshot rather than PostgreSQL's inserted/updated command count.
 
 `WarehouseRepository.reconcile(connection: Connection) -> ReconciliationResult` uses SQL aggregates and anti-joins. Apply `coalesce(sum(value), numeric '0')` only to aggregate comparison fields while separately comparing null counts. Do not alter stored fact values.
 
-- [ ] **Step 7: Run GREEN and repository lint**
+- [x] **Step 7: Run GREEN and repository lint**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\integration\test_warehouse_service.py::test_repository_builds_reconciled_star -q -p no:cacheprovider --tb=short
@@ -331,7 +331,7 @@ Dimension conflict updates replace only current descriptive attributes and `upda
 
 Expected: focused scenario and Ruff pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```powershell
 git add src/govinsight/warehouse tests/integration/test_warehouse_service.py
