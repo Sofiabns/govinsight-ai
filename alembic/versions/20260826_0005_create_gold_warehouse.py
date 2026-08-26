@@ -44,9 +44,7 @@ def upgrade() -> None:
         sa.Column("esfera_id", sa.Text()),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint(
-            "orgao_cnpj ~ '^[0-9]{14}$'", name="ck_gold_dim_organization_cnpj"
-        ),
+        sa.CheckConstraint("orgao_cnpj ~ '^[0-9]{14}$'", name="ck_gold_dim_organization_cnpj"),
         sa.PrimaryKeyConstraint("organization_key", name="pk_gold_dim_organization"),
         sa.UniqueConstraint("orgao_cnpj", name="uq_gold_dim_organization_cnpj"),
         schema="gold",
@@ -126,9 +124,7 @@ def upgrade() -> None:
             ["gold.dim_organization.organization_key"],
             name="fk_gold_fact_organization",
         ),
-        sa.ForeignKeyConstraint(
-            ["unit_key"], ["gold.dim_unit.unit_key"], name="fk_gold_fact_unit"
-        ),
+        sa.ForeignKeyConstraint(["unit_key"], ["gold.dim_unit.unit_key"], name="fk_gold_fact_unit"),
         sa.ForeignKeyConstraint(
             ["modality_key"],
             ["gold.dim_modality.modality_key"],
@@ -164,9 +160,7 @@ def upgrade() -> None:
         ["organization_key"],
         schema="gold",
     )
-    op.create_index(
-        "ix_gold_fact_unit", "fact_procurement", ["unit_key"], schema="gold"
-    )
+    op.create_index("ix_gold_fact_unit", "fact_procurement", ["unit_key"], schema="gold")
     op.create_index(
         "ix_gold_fact_modality",
         "fact_procurement",
@@ -179,9 +173,7 @@ def upgrade() -> None:
         ["publication_date_key"],
         schema="gold",
     )
-    op.create_index(
-        "ix_gold_fact_year", "fact_procurement", ["ano_compra"], schema="gold"
-    )
+    op.create_index("ix_gold_fact_year", "fact_procurement", ["ano_compra"], schema="gold")
 
 
 def downgrade() -> None:

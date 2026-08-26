@@ -58,9 +58,9 @@ def test_warehouse_migration_is_dimensional_constrained_and_reversible(
         inspector = inspect(engine)
         assert GOLD_TABLES <= set(inspector.get_table_names(schema="gold"))
 
-        assert inspector.get_pk_constraint("dim_date", schema="gold")[
-            "constrained_columns"
-        ] == ["date_key"]
+        assert inspector.get_pk_constraint("dim_date", schema="gold")["constrained_columns"] == [
+            "date_key"
+        ]
         assert inspector.get_pk_constraint("fact_procurement", schema="gold")[
             "constrained_columns"
         ] == ["procurement_key"]
@@ -73,8 +73,7 @@ def test_warehouse_migration_is_dimensional_constrained_and_reversible(
             item["name"] for item in inspector.get_unique_constraints("dim_unit", schema="gold")
         }
         modality_uniques = {
-            item["name"]
-            for item in inspector.get_unique_constraints("dim_modality", schema="gold")
+            item["name"] for item in inspector.get_unique_constraints("dim_modality", schema="gold")
         }
         fact_uniques = {
             item["name"]
@@ -86,8 +85,7 @@ def test_warehouse_migration_is_dimensional_constrained_and_reversible(
         assert "uq_gold_fact_procurement_pncp" in fact_uniques
 
         assert {
-            item["name"]
-            for item in inspector.get_foreign_keys("fact_procurement", schema="gold")
+            item["name"] for item in inspector.get_foreign_keys("fact_procurement", schema="gold")
         } >= FACT_FOREIGN_KEYS
         assert {
             item["name"] for item in inspector.get_indexes("fact_procurement", schema="gold")
