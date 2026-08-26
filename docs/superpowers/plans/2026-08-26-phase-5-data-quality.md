@@ -280,7 +280,7 @@ git commit -m "feat: create data quality audit schema"
 - Consumes: `silver.procurement`, Bronze RAW lineage, Silver watermark and Task 1/2 contracts.
 - Produces: `DataQualityService(engine).run_pending() -> DataQualityRunResult`.
 
-- [ ] **Step 1: Write one end-to-end failing integration test**
+- [x] **Step 1: Write one end-to-end failing integration test**
 
 Use real PostgreSQL and isolated natural keys. The test must:
 
@@ -299,7 +299,7 @@ Use real PostgreSQL and isolated natural keys. The test must:
 
 The first RED failure must be an import error for `govinsight.quality.service`.
 
-- [ ] **Step 2: Implement the explicit rule registry**
+- [x] **Step 2: Implement the explicit rule registry**
 
 Define:
 
@@ -324,7 +324,7 @@ Every statement returns exactly `checked_count` and `failed_count`. Use aggregat
 
 Keep stable rule order matching the specification. Do not interpolate data values into SQL strings.
 
-- [ ] **Step 3: Implement repositories**
+- [x] **Step 3: Implement repositories**
 
 Provide these exact operations:
 
@@ -344,7 +344,7 @@ the existing completed evidence without executing rules again.
 Use PostgreSQL `ON CONFLICT` for snapshot idempotency and monotonic watermark advancement. Existing
 completed snapshots are returned unchanged. Persist only aggregate `details`.
 
-- [ ] **Step 4: Implement the service transaction flow**
+- [x] **Step 4: Implement the service transaction flow**
 
 `DataQualityService.run_pending()` reads Silver and quality watermarks. If Silver is zero or not
 newer, return a frozen no-op result. Otherwise create/recover the run, execute all rules in one
@@ -364,7 +364,7 @@ class DataQualityExecutionError(RuntimeError):
 Translate SQLAlchemy failures to `QUALITY_QUERY_FAILED` without retaining the original exception as
 implicit context. Record the safe code in a separate transaction, then raise with `from None`.
 
-- [ ] **Step 5: Run GREEN and scoped quality checks**
+- [x] **Step 5: Run GREEN and scoped quality checks**
 
 ```powershell
 $env:GOVINSIGHT_DATABASE_URL = "postgresql+psycopg://govinsight_app:govinsight_local@127.0.0.1:54320/govinsight?connect_timeout=5"
@@ -374,7 +374,7 @@ $env:GOVINSIGHT_DATABASE_URL = "postgresql+psycopg://govinsight_app:govinsight_l
 
 Expected: scoring, migration and service tests pass with real PostgreSQL; lint is clean.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add src/govinsight/quality tests/integration/test_quality_service.py
