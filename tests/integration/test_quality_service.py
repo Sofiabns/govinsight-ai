@@ -10,8 +10,11 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy import Engine, create_engine
 
+from govinsight.quality import service as quality_service_module
 from govinsight.quality.models import QualityRunStatus, RuleStatus
-from govinsight.quality.service import DataQualityService
+from govinsight.quality.repositories import QualityRunRepository
+from govinsight.quality.rules import procurement_quality_rules
+from govinsight.quality.service import DataQualityExecutionError, DataQualityService
 from govinsight.quality.tables import data_quality_result, data_quality_run
 from govinsight.raw.hashing import request_fingerprint, sha256_text
 from govinsight.raw.models import RawCapture, RawDataset
@@ -152,7 +155,12 @@ def test_quality_gate_persists_evidence_blocks_invalid_data_and_warns_on_volume(
         connection.execute(
             procurement.update()
             .where(procurement.c.numero_controle_pncp == invalid["numeroControlePNCP"])
-            .values(objeto_compra="", uf_sigla="ZZ", informacao_complementar="SENSITIVE-VALUE")
+            .values(
+                numero_controle_pncp="broken-key",
+                objeto_compra="",
+                uf_sigla="ZZ",
+                informacao_complementar="SENSITIVE-VALUE",
+            )
         )
 
     failed = service.run_pending()
@@ -161,6 +169,7 @@ def test_quality_gate_persists_evidence_blocks_invalid_data_and_warns_on_volume(
     assert failed.source_watermark == invalid_raw_id
     assert failed_by_code["REQUIRED_TEXT_PRESENT"].status is RuleStatus.FAILED
     assert failed_by_code["UF_DOMAIN_VALID"].status is RuleStatus.FAILED
+    assert failed_by_code["PURCHASE_YEAR_CONSISTENT"].status is RuleStatus.FAILED
     assert "SENSITIVE-VALUE" not in str(failed.model_dump())
     with engine.connect() as connection:
         quality_watermark = connection.execute(
@@ -176,10 +185,23 @@ def test_quality_gate_persists_evidence_blocks_invalid_data_and_warns_on_volume(
     corrected["dataAtualizacaoGlobal"] = "2025-09-18T13:50:39"
     corrected["objetoCompra"] = "OBJETO CORRIGIDO"
     corrected["unidadeOrgao"]["ufSigla"] = "RS"
+    with engine.begin() as connection:
+        connection.execute(
+            procurement.delete().where(procurement.c.numero_controle_pncp == "broken-key")
+        )
     corrected_raw_id = _load_silver(engine, [corrected], f"{identity}-corrected")
     corrected_result = service.run_pending()
     assert corrected_result.status is QualityRunStatus.PASSED
     assert corrected_result.source_watermark == corrected_raw_id
+    with engine.connect() as connection:
+        corrected_watermark = connection.execute(
+            sa.select(etl_watermark.c.watermark_value).where(
+                etl_watermark.c.pipeline_name == "data_quality",
+                etl_watermark.c.dataset == "procurements",
+                etl_watermark.c.stage == "quality",
+            )
+        ).scalar_one()
+    assert corrected_watermark == {"last_raw_response_id": corrected_raw_id}
 
     now = datetime.now(UTC)
     with engine.begin() as connection:
@@ -217,6 +239,141 @@ def test_quality_gate_persists_evidence_blocks_invalid_data_and_warns_on_volume(
         "deviation_percent": Decimal("300.00"),
         "history_runs": 4,
     }
+
+    with engine.begin() as connection:
+        run_ids = sa.select(etl_run.c.id).where(
+            etl_run.c.pipeline_name.like(f"quality-test-{identity}%")
+        )
+        connection.execute(data_quality_result.delete())
+        connection.execute(data_quality_run.delete())
+        connection.execute(procurement.delete())
+        connection.execute(
+            raw_api_response.delete().where(raw_api_response.c.etl_run_id.in_(run_ids))
+        )
+        connection.execute(etl_run.delete().where(etl_run.c.id.in_(run_ids)))
+        connection.execute(
+            etl_watermark.delete().where(
+                etl_watermark.c.dataset == "procurements",
+                etl_watermark.c.stage.in_(["silver", "quality"]),
+            )
+        )
+
+
+@pytest.mark.integration
+def test_replay_read_failure_never_reclassifies_completed_evidence(
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = json.loads(FIXTURE.read_text(encoding="utf-8"))["data"][0]
+    identity = uuid4().hex
+    with engine.begin() as connection:
+        connection.execute(data_quality_result.delete())
+        connection.execute(data_quality_run.delete())
+        connection.execute(procurement.delete())
+        connection.execute(
+            etl_watermark.delete().where(
+                etl_watermark.c.dataset == "procurements",
+                etl_watermark.c.stage.in_(["silver", "quality"]),
+            )
+        )
+
+    _load_silver(engine, [base], f"{identity}-clean")
+    service = DataQualityService(engine)
+    completed = service.run_pending()
+    assert completed.run_id is not None
+
+    def fail_load(connection: sa.Connection, run_id: int) -> object:
+        raise sa.exc.OperationalError("SELECT", {}, RuntimeError("SENSITIVE-DB-CONTEXT"))
+
+    monkeypatch.setattr(service._runs, "load", fail_load)
+    with pytest.raises(DataQualityExecutionError, match="QUALITY_QUERY_FAILED") as captured:
+        service.run_pending()
+    assert "SENSITIVE-DB-CONTEXT" not in str(captured.value)
+
+    with engine.begin() as connection:
+        stored = connection.execute(
+            sa.select(data_quality_run.c.status, data_quality_run.c.error_code).where(
+                data_quality_run.c.id == completed.run_id
+            )
+        ).one()
+        changed = QualityRunRepository().fail_execution(
+            connection,
+            completed.run_id,
+            "QUALITY_QUERY_FAILED",
+        )
+    assert stored.status == "PASSED"
+    assert stored.error_code is None
+    assert changed is False
+
+    with engine.begin() as connection:
+        run_ids = sa.select(etl_run.c.id).where(
+            etl_run.c.pipeline_name.like(f"quality-test-{identity}%")
+        )
+        connection.execute(data_quality_result.delete())
+        connection.execute(data_quality_run.delete())
+        connection.execute(procurement.delete())
+        connection.execute(
+            raw_api_response.delete().where(raw_api_response.c.etl_run_id.in_(run_ids))
+        )
+        connection.execute(etl_run.delete().where(etl_run.c.id.in_(run_ids)))
+        connection.execute(
+            etl_watermark.delete().where(
+                etl_watermark.c.dataset == "procurements",
+                etl_watermark.c.stage.in_(["silver", "quality"]),
+            )
+        )
+
+
+@pytest.mark.integration
+def test_quality_rules_share_one_repeatable_read_snapshot(
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = json.loads(FIXTURE.read_text(encoding="utf-8"))["data"][0]
+    identity = uuid4().hex
+    with engine.begin() as connection:
+        connection.execute(data_quality_result.delete())
+        connection.execute(data_quality_run.delete())
+        connection.execute(procurement.delete())
+        connection.execute(
+            etl_watermark.delete().where(
+                etl_watermark.c.dataset == "procurements",
+                etl_watermark.c.stage.in_(["silver", "quality"]),
+            )
+        )
+
+    first_raw_id = _load_silver(engine, [base], f"{identity}-first")
+    concurrent = deepcopy(base)
+    concurrent["numeroControlePNCP"] = "13183513000127-1-000150/2025"
+    concurrent_raw_id = _insert_raw(engine, [concurrent], f"{identity}-concurrent")
+    parsed = parse_procurement(concurrent, raw_response_id=concurrent_raw_id, record_index=0)
+    assert parsed.procurement is not None
+    rules = procurement_quality_rules()
+
+    def rules_with_concurrent_commit() -> object:
+        yield rules[0]
+        with engine.begin() as connection:
+            ProcurementRepository().upsert(connection, parsed.procurement)
+            SilverWatermarkRepository().advance(connection, concurrent_raw_id)
+        yield from rules[1:]
+
+    monkeypatch.setattr(
+        quality_service_module,
+        "procurement_quality_rules",
+        rules_with_concurrent_commit,
+    )
+    first = DataQualityService(engine).run_pending()
+    by_code = {item.rule_code: item for item in first.evaluations}
+    assert first.status is QualityRunStatus.PASSED
+    assert first.source_watermark == first_raw_id
+    assert first.rows_evaluated == 1
+    assert by_code["REQUIRED_TEXT_PRESENT"].checked_count == 1
+
+    monkeypatch.undo()
+    second = DataQualityService(engine).run_pending()
+    assert second.status is QualityRunStatus.PASSED
+    assert second.source_watermark == concurrent_raw_id
+    assert second.rows_evaluated == 2
 
     with engine.begin() as connection:
         run_ids = sa.select(etl_run.c.id).where(

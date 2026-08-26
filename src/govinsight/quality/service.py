@@ -73,63 +73,69 @@ class DataQualityService:
     def run_pending(self) -> DataQualityRunResult:
         source_watermark = 0
         run_id: int | None = None
+        created_run = False
         try:
-            with self._engine.begin() as connection:
-                source_watermark = self._watermarks.silver_current(connection)
-                if source_watermark == 0:
-                    return DataQualityRunResult(
-                        run_id=None,
-                        source_watermark=0,
-                        status=QualityRunStatus.NOOP,
-                        rows_evaluated=0,
-                        score=None,
-                        blocking_failures=0,
-                        reused=True,
-                    )
-                state = self._runs.start_or_get(connection, source_watermark)
-                run_id = state.run_id
-                if not state.created:
-                    return self._runs.load(connection, run_id)
+            with self._engine.connect() as connection:
+                connection = connection.execution_options(isolation_level="REPEATABLE READ")
+                with connection.begin():
+                    source_watermark = self._watermarks.silver_current(connection)
+                    if source_watermark == 0:
+                        return DataQualityRunResult(
+                            run_id=None,
+                            source_watermark=0,
+                            status=QualityRunStatus.NOOP,
+                            rows_evaluated=0,
+                            score=None,
+                            blocking_failures=0,
+                            reused=True,
+                        )
+                    state = self._runs.start_or_get(connection, source_watermark)
+                    run_id = state.run_id
+                    created_run = state.created
+                    if not state.created:
+                        return self._runs.load(connection, run_id)
 
-                rows_evaluated = connection.execute(
-                    sa.select(sa.func.count()).select_from(procurement)
-                ).scalar_one()
-                evaluations = tuple(
-                    RuleEvaluation.from_counts(
-                        rule_code=rule.code,
-                        dimension=rule.dimension,
-                        severity=rule.severity,
-                        checked_count=measurement.checked_count,
-                        failed_count=measurement.failed_count,
+                    rows_evaluated = connection.execute(
+                        sa.select(sa.func.count()).select_from(procurement)
+                    ).scalar_one()
+                    evaluations = tuple(
+                        RuleEvaluation.from_counts(
+                            rule_code=rule.code,
+                            dimension=rule.dimension,
+                            severity=rule.severity,
+                            checked_count=measurement.checked_count,
+                            failed_count=measurement.failed_count,
+                        )
+                        for rule in procurement_quality_rules()
+                        for measurement in [connection.execute(rule.statement).one()]
                     )
-                    for rule in procurement_quality_rules()
-                    for measurement in [connection.execute(rule.statement).one()]
-                )
-                history = self._runs.successful_row_counts(connection)
-                evaluations += (_volume_evaluation(rows_evaluated, history),)
-                score = calculate_quality_score(evaluations)
-                status = (
-                    QualityRunStatus.PASSED
-                    if score.blocking_failures == 0
-                    else QualityRunStatus.FAILED
-                )
-                result = DataQualityRunResult(
-                    run_id=run_id,
-                    source_watermark=source_watermark,
-                    status=status,
-                    rows_evaluated=rows_evaluated,
-                    score=score.overall,
-                    blocking_failures=score.blocking_failures,
-                    evaluations=evaluations,
-                )
-                self._results.replace(connection, run_id, evaluations)
-                self._runs.complete(connection, run_id, result)
-                if status is QualityRunStatus.PASSED:
-                    self._watermarks.advance(connection, source_watermark)
-                return result
+                    history = self._runs.successful_row_counts(connection)
+                    evaluations += (_volume_evaluation(rows_evaluated, history),)
+                    score = calculate_quality_score(evaluations)
+                    status = (
+                        QualityRunStatus.PASSED
+                        if score.blocking_failures == 0
+                        else QualityRunStatus.FAILED
+                    )
+                    result = DataQualityRunResult(
+                        run_id=run_id,
+                        source_watermark=source_watermark,
+                        status=status,
+                        rows_evaluated=rows_evaluated,
+                        score=score.overall,
+                        blocking_failures=score.blocking_failures,
+                        evaluations=evaluations,
+                    )
+                    self._results.replace(connection, run_id, evaluations)
+                    self._runs.complete(connection, run_id, result)
+                    if status is QualityRunStatus.PASSED:
+                        self._watermarks.advance(connection, source_watermark)
+                    return result
         except sa.exc.SQLAlchemyError:
             if source_watermark == 0:
                 raise DataQualityExecutionError(0, "QUALITY_QUERY_FAILED") from None
+            if run_id is not None and not created_run:
+                raise DataQualityExecutionError(run_id, "QUALITY_QUERY_FAILED") from None
             with self._engine.begin() as connection:
                 state = self._runs.start_or_get(connection, source_watermark)
                 run_id = state.run_id

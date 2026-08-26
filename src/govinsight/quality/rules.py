@@ -114,6 +114,14 @@ def procurement_quality_rules() -> tuple[RuleDefinition, ...]:
         raw_api_response,
         procurement.c.source_raw_response_id == raw_api_response.c.id,
     )
+    has_year_suffix = procurement.c.numero_controle_pncp.op("~")(r"/[0-9]{4}$")
+    parsed_purchase_year = sa.case(
+        (
+            has_year_suffix,
+            sa.cast(sa.func.right(procurement.c.numero_controle_pncp, 4), sa.Integer()),
+        ),
+        else_=None,
+    )
 
     return (
         RuleDefinition(
@@ -201,8 +209,10 @@ def procurement_quality_rules() -> tuple[RuleDefinition, ...]:
             QualityDimension.CONSISTENCY,
             RuleSeverity.BLOCKING,
             _counts(
-                sa.cast(sa.func.right(procurement.c.numero_controle_pncp, 4), sa.Integer())
-                != procurement.c.ano_compra
+                sa.or_(
+                    sa.not_(has_year_suffix),
+                    parsed_purchase_year != procurement.c.ano_compra,
+                )
             ),
         ),
         RuleDefinition(

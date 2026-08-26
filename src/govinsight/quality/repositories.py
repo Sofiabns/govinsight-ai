@@ -161,16 +161,20 @@ class QualityRunRepository:
             )
         )
 
-    def fail_execution(self, connection: Connection, run_id: int, error_code: str) -> None:
-        connection.execute(
+    def fail_execution(self, connection: Connection, run_id: int, error_code: str) -> bool:
+        result = connection.execute(
             data_quality_run.update()
-            .where(data_quality_run.c.id == run_id)
+            .where(
+                data_quality_run.c.id == run_id,
+                data_quality_run.c.status == QualityRunStatus.RUNNING.value,
+            )
             .values(
                 status=QualityRunStatus.FAILED.value,
                 finished_at=datetime.now(UTC),
                 error_code=error_code,
             )
         )
+        return result.rowcount == 1
 
     def successful_row_counts(
         self,
