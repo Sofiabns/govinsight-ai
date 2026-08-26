@@ -351,7 +351,7 @@ git commit -m "feat: add gold warehouse repositories"
 - Consumes: `WarehouseWatermarkRepository`, `WarehouseRepository`, `WarehouseLoadResult`, and `WarehouseStateError` from Task 2.
 - Produces: `WarehouseLoadService(engine: Engine).run_pending() -> WarehouseLoadResult`.
 
-- [ ] **Step 1: Write focused failing workflow tests**
+- [x] **Step 1: Write focused failing workflow tests**
 
 Cover four behaviors in the existing integration file:
 
@@ -439,7 +439,7 @@ def test_reconciliation_failure_rolls_back_all_gold_changes(engine: Engine, monk
 Use real PostgreSQL state for every assertion. The monkeypatch changes only the returned reconciliation result so transaction rollback remains real.
 Implement the named helpers locally in the test module: use unique PNCP keys/CNPJs per test, insert matching `bronze.raw_api_response` lineage before Silver rows, and delete only those unique rows plus the three warehouse watermark keys during cleanup. `procurement_record`, `update_approved_silver`, and `read_dimension_and_fact_identity` must return concrete fixture data/a frozen identity record; they are test utilities, not production interfaces.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\integration\test_warehouse_service.py -q -p no:cacheprovider --tb=short
@@ -447,7 +447,7 @@ Implement the named helpers locally in the test module: use unique PNCP keys/CNP
 
 Expected: repository scenario passes; service scenarios fail because `WarehouseLoadService` does not exist.
 
-- [ ] **Step 3: Implement state validation**
+- [x] **Step 3: Implement state validation**
 
 Use this decision table before any Gold write:
 
@@ -464,7 +464,7 @@ if state.gold == state.quality:
 
 This makes missing Quality approval, failed newer Quality snapshots, and contradictory progress explicit.
 
-- [ ] **Step 4: Implement the transaction**
+- [x] **Step 4: Implement the transaction**
 
 ```python
 class WarehouseLoadService:
@@ -496,7 +496,7 @@ class WarehouseLoadService:
 
 Export the service and public models from `warehouse/__init__.py`. Do not catch SQLAlchemy errors merely to rename them; allowing them out of the transaction guarantees rollback and preserves actionable infrastructure diagnostics.
 
-- [ ] **Step 5: Run GREEN and focused quality checks**
+- [x] **Step 5: Run GREEN and focused quality checks**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\integration\test_warehouse_service.py -q -p no:cacheprovider --tb=short
@@ -506,7 +506,7 @@ Export the service and public models from `warehouse/__init__.py`. Do not catch 
 
 Expected: all warehouse workflow tests and Ruff checks pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add src/govinsight/warehouse tests/integration/test_warehouse_service.py

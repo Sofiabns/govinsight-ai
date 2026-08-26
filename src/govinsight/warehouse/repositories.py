@@ -106,6 +106,9 @@ def _date_key(value: sa.ColumnElement) -> sa.ColumnElement:
 
 
 class WarehouseRepository:
+    def fact_count(self, connection: Connection) -> int:
+        return self._count(connection, fact_procurement)
+
     def load_dimensions(self, connection: Connection) -> dict[str, int]:
         now = datetime.now(UTC)
         self._load_dates(connection)
