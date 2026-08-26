@@ -51,7 +51,7 @@
 - Consumes: shared `metadata` from `govinsight.raw.tables` and Alembic head `20260826_0004`.
 - Produces: `dim_date`, `dim_organization`, `dim_unit`, `dim_modality`, and `fact_procurement` SQLAlchemy tables in schema `gold`.
 
-- [ ] **Step 1: Write the failing migration contract**
+- [x] **Step 1: Write the failing migration contract**
 
 Create an integration test that downgrades to `20260826_0004`, upgrades to `head`, and asserts the exact table set:
 
@@ -85,7 +85,7 @@ assert {item["name"] for item in inspector.get_foreign_keys(
 
 Also assert natural-key uniqueness for every dimension, `numeric(19,4)` for both monetary columns, the expected indexes, downgrade removal, and restoration to `head` in `finally`.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 $env:GOVINSIGHT_DATABASE_URL='postgresql+psycopg://govinsight_app:govinsight_local@127.0.0.1:54320/govinsight?connect_timeout=5'
@@ -94,7 +94,7 @@ $env:GOVINSIGHT_DATABASE_URL='postgresql+psycopg://govinsight_app:govinsight_loc
 
 Expected: FAIL because revision `20260826_0005` and the Gold tables do not exist.
 
-- [ ] **Step 3: Define the SQLAlchemy tables**
+- [x] **Step 3: Define the SQLAlchemy tables**
 
 Use the shared metadata and these stable identifiers:
 
@@ -154,7 +154,7 @@ sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False)
 
 Add named FKs to all dimensions and `bronze.raw_api_response.id`, nonnegative monetary checks, natural-key checks, and indexes for organization, unit, modality, publication date, and procurement year.
 
-- [ ] **Step 4: Create Alembic revision `20260826_0005`**
+- [x] **Step 4: Create Alembic revision `20260826_0005`**
 
 Set:
 
@@ -165,7 +165,7 @@ down_revision = "20260826_0004"
 
 Create dimensions before the fact in `upgrade()`. Drop the fact before dimensions in `downgrade()`. Mirror every table, constraint, and index name from `tables.py`.
 
-- [ ] **Step 5: Run GREEN and schema lint**
+- [x] **Step 5: Run GREEN and schema lint**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\integration\test_warehouse_migration.py -q -p no:cacheprovider --tb=short
@@ -174,7 +174,7 @@ Create dimensions before the fact in `upgrade()`. Drop the fact before dimension
 
 Expected: migration test and Ruff pass; database returns to Alembic head.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add src/govinsight/warehouse/tables.py alembic/versions/20260826_0005_create_gold_warehouse.py tests/integration/test_warehouse_migration.py
