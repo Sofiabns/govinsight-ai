@@ -10,15 +10,22 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy import Engine, create_engine
 
+from govinsight.quality.repositories import QualityWatermarkRepository
 from govinsight.raw.hashing import request_fingerprint, sha256_text
 from govinsight.raw.models import RawCapture, RawDataset
 from govinsight.raw.repositories import RawResponseRepository, RunRepository
 from govinsight.raw.tables import etl_watermark, raw_api_response
 from govinsight.transform.procurement import parse_procurement
 from govinsight.transform.repositories import ProcurementRepository, SilverWatermarkRepository
-from govinsight.transform.tables import procurement
-from govinsight.warehouse.models import ReconciliationResult
-from govinsight.warehouse.repositories import WarehouseRepository
+from govinsight.transform.tables import procurement, rejected_record
+from govinsight.warehouse.models import (
+    ReconciliationResult,
+    WarehouseLoadResult,
+    WarehouseLoadStatus,
+    WarehouseStateError,
+)
+from govinsight.warehouse.repositories import WarehouseRepository, WarehouseWatermarkRepository
+from govinsight.warehouse.service import WarehouseLoadService
 from govinsight.warehouse.tables import (
     dim_date,
     dim_modality,
@@ -130,9 +137,28 @@ def _cleanup(engine: Engine) -> None:
         connection.execute(dim_modality.delete())
         connection.execute(dim_unit.delete())
         connection.execute(dim_organization.delete())
+        connection.execute(rejected_record.delete())
         connection.execute(procurement.delete())
         connection.execute(etl_watermark.delete().where(etl_watermark.c.dataset == "procurements"))
         connection.execute(raw_api_response.delete())
+
+
+def _approve_quality(engine: Engine, raw_id: int) -> None:
+    with engine.begin() as connection:
+        QualityWatermarkRepository().advance(connection, raw_id)
+
+
+def _gold_counts(engine: Engine) -> tuple[int, int, int, int, int]:
+    with engine.connect() as connection:
+        return tuple(
+            connection.execute(sa.select(sa.func.count()).select_from(table)).scalar_one()
+            for table in (dim_date, dim_organization, dim_unit, dim_modality, fact_procurement)
+        )
+
+
+def _gold_watermark(engine: Engine) -> int:
+    with engine.connect() as connection:
+        return WarehouseWatermarkRepository().read_state(connection, lock_gold=False).gold
 
 
 @pytest.mark.integration
@@ -190,5 +216,170 @@ def test_repository_builds_reconciled_star(engine: Engine) -> None:
             ).all()
         assert len(joined) == 2
         assert {row.full_date for row in joined} == {date(2025, 8, 1), date(2025, 8, 2)}
+    finally:
+        _cleanup(engine)
+
+
+@pytest.mark.integration
+def test_approved_snapshot_loads_and_exact_replay_is_noop(engine: Engine) -> None:
+    """Catch a load that skips approval, advances incompletely, or rewrites an exact replay."""
+    _cleanup(engine)
+    source_watermark = _seed_silver(engine, _records())
+    _approve_quality(engine, source_watermark)
+
+    try:
+        service = WarehouseLoadService(engine)
+        first = service.run_pending()
+        before_counts = _gold_counts(engine)
+        second = service.run_pending()
+
+        assert first == WarehouseLoadResult(
+            status=WarehouseLoadStatus.LOADED,
+            source_watermark=source_watermark,
+            rows_loaded=2,
+            reused=False,
+        )
+        assert before_counts == (5, 2, 2, 1, 2)
+        assert second == WarehouseLoadResult(
+            status=WarehouseLoadStatus.NOOP,
+            source_watermark=source_watermark,
+            rows_loaded=2,
+            reused=True,
+        )
+        assert _gold_counts(engine) == before_counts
+        assert _gold_watermark(engine) == source_watermark
+    finally:
+        _cleanup(engine)
+
+
+@pytest.mark.integration
+def test_silver_quality_mismatch_blocks_without_gold_writes(engine: Engine) -> None:
+    """Catch Gold loading mutable Silver data that has not passed the current quality gate."""
+    _cleanup(engine)
+    _seed_silver(engine, [_records()[0]])
+
+    try:
+        with pytest.raises(WarehouseStateError, match="UNAPPROVED_SILVER_SNAPSHOT"):
+            WarehouseLoadService(engine).run_pending()
+        assert _gold_counts(engine) == (0, 0, 0, 0, 0)
+        assert _gold_watermark(engine) == 0
+    finally:
+        _cleanup(engine)
+
+
+@pytest.mark.integration
+def test_later_snapshot_updates_type_one_dimensions_and_fact(engine: Engine) -> None:
+    """Catch surrogate-key churn or stale descriptions, measures, and lineage on later snapshots."""
+    _cleanup(engine)
+    first_record = _records()[0]
+    first_watermark = _seed_silver(engine, [first_record])
+    _approve_quality(engine, first_watermark)
+
+    try:
+        service = WarehouseLoadService(engine)
+        service.run_pending()
+        with engine.connect() as connection:
+            before = connection.execute(
+                sa.select(
+                    dim_organization.c.organization_key,
+                    dim_unit.c.unit_key,
+                    dim_modality.c.modality_key,
+                    fact_procurement.c.procurement_key,
+                    fact_procurement.c.source_raw_response_id,
+                    fact_procurement.c.normalized_sha256,
+                    fact_procurement.c.created_at,
+                )
+                .select_from(fact_procurement)
+                .join(dim_organization)
+                .join(dim_unit)
+                .join(dim_modality)
+            ).one()
+
+        updated = deepcopy(first_record)
+        updated["orgaoEntidade"]["razaoSocial"] = "Órgão Atualizado"
+        updated["unidadeOrgao"]["nomeUnidade"] = "Unidade Atualizada"
+        updated["modalidadeNome"] = "Modalidade Atualizada"
+        updated["valorTotalEstimado"] = 125.5
+        updated["dataAtualizacaoGlobal"] = "2025-10-03T12:00:00"
+        second_watermark = _seed_silver(engine, [updated])
+        _approve_quality(engine, second_watermark)
+
+        result = service.run_pending()
+        with engine.connect() as connection:
+            after = connection.execute(
+                sa.select(
+                    dim_organization.c.organization_key,
+                    dim_organization.c.orgao_razao_social,
+                    dim_unit.c.unit_key,
+                    dim_unit.c.nome_unidade,
+                    dim_modality.c.modality_key,
+                    dim_modality.c.modalidade_nome,
+                    fact_procurement.c.procurement_key,
+                    fact_procurement.c.source_raw_response_id,
+                    fact_procurement.c.normalized_sha256,
+                    fact_procurement.c.valor_total_estimado,
+                    fact_procurement.c.created_at,
+                )
+                .select_from(fact_procurement)
+                .join(dim_organization)
+                .join(dim_unit)
+                .join(dim_modality)
+            ).one()
+
+        assert second_watermark > first_watermark
+        assert result.source_watermark == second_watermark
+        assert after.organization_key == before.organization_key
+        assert after.unit_key == before.unit_key
+        assert after.modality_key == before.modality_key
+        assert after.procurement_key == before.procurement_key
+        assert after.orgao_razao_social == "Órgão Atualizado"
+        assert after.nome_unidade == "Unidade Atualizada"
+        assert after.modalidade_nome == "Modalidade Atualizada"
+        assert after.valor_total_estimado == Decimal("125.5000")
+        assert after.source_raw_response_id > before.source_raw_response_id
+        assert after.normalized_sha256 != before.normalized_sha256
+        assert after.created_at == before.created_at
+    finally:
+        _cleanup(engine)
+
+
+@pytest.mark.integration
+def test_reconciliation_failure_rolls_back_all_gold_changes(
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Catch partial dimension/fact commits or watermark progress after failed reconciliation."""
+    _cleanup(engine)
+    source_watermark = _seed_silver(engine, [_records()[0]])
+    _approve_quality(engine, source_watermark)
+    invalid = ReconciliationResult(
+        silver_rows=1,
+        fact_rows=0,
+        missing_in_fact=1,
+        missing_in_silver=0,
+        orphan_foreign_keys=0,
+        lineage_mismatches=0,
+        estimated_silver=Decimal("100.2500"),
+        estimated_fact=Decimal("0"),
+        estimated_nulls_silver=0,
+        estimated_nulls_fact=0,
+        homologated_silver=Decimal("300.0000"),
+        homologated_fact=Decimal("0"),
+        homologated_nulls_silver=0,
+        homologated_nulls_fact=0,
+    )
+
+    def invalid_reconciliation(
+        repository: WarehouseRepository,
+        connection: sa.Connection,
+    ) -> ReconciliationResult:
+        return invalid
+
+    monkeypatch.setattr(WarehouseRepository, "reconcile", invalid_reconciliation)
+    try:
+        with pytest.raises(WarehouseStateError, match="RECONCILIATION_FAILED"):
+            WarehouseLoadService(engine).run_pending()
+        assert _gold_counts(engine) == (0, 0, 0, 0, 0)
+        assert _gold_watermark(engine) == 0
     finally:
         _cleanup(engine)
