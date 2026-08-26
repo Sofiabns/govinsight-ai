@@ -6,7 +6,7 @@ from govinsight.raw.tables import metadata
 data_quality_run = sa.Table(
     "data_quality_run",
     metadata,
-    sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+    sa.Column("id", sa.BigInteger(), sa.Identity(), nullable=False),
     sa.Column("dataset", sa.Text(), nullable=False),
     sa.Column("stage", sa.Text(), nullable=False),
     sa.Column("source_watermark", sa.BigInteger(), nullable=False),
@@ -17,6 +17,7 @@ data_quality_run = sa.Table(
     sa.Column("score", sa.Numeric(5, 2)),
     sa.Column("blocking_failures", sa.Integer(), nullable=False, server_default="0"),
     sa.Column("error_code", sa.Text()),
+    sa.PrimaryKeyConstraint("id", name="pk_quality_run"),
     sa.UniqueConstraint("dataset", "source_watermark", name="uq_quality_run_snapshot"),
     sa.CheckConstraint(
         "status IN ('RUNNING', 'PASSED', 'FAILED')",
@@ -37,7 +38,7 @@ data_quality_run = sa.Table(
 data_quality_result = sa.Table(
     "data_quality_result",
     metadata,
-    sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+    sa.Column("id", sa.BigInteger(), sa.Identity(), nullable=False),
     sa.Column(
         "run_id",
         sa.BigInteger(),
@@ -57,6 +58,7 @@ data_quality_result = sa.Table(
     sa.Column("score", sa.Numeric(5, 2)),
     sa.Column("details", postgresql.JSONB(), nullable=False, server_default="{}"),
     sa.Column("evaluated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.PrimaryKeyConstraint("id", name="pk_quality_result"),
     sa.UniqueConstraint("run_id", "rule_code", name="uq_quality_result_run_rule"),
     sa.CheckConstraint(
         "status IN ('passed', 'failed', 'warning', 'not_evaluated')",
