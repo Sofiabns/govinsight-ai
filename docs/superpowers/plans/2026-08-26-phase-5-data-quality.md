@@ -197,7 +197,7 @@ git commit -m "feat: add deterministic data quality scoring"
 - Consumes: shared metadata from `govinsight.raw.tables.metadata` and Alembic head `20260823_0003`.
 - Produces: `data_quality_run` and `data_quality_result` SQLAlchemy tables in schema `control`.
 
-- [ ] **Step 1: Write the migration contract first**
+- [x] **Step 1: Write the migration contract first**
 
 The integration test downgrades to `20260823_0003`, upgrades to head and inspects:
 
@@ -218,7 +218,7 @@ assert any(
 Also assert the result foreign key targets `control.data_quality_run.id`, uniqueness on
 `(run_id, rule_code)`, named score/count/status checks, then downgrade and restore head in `finally`.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 $env:GOVINSIGHT_DATABASE_URL = "postgresql+psycopg://govinsight_app:govinsight_local@127.0.0.1:54320/govinsight?connect_timeout=5"
@@ -227,7 +227,7 @@ $env:GOVINSIGHT_DATABASE_URL = "postgresql+psycopg://govinsight_app:govinsight_l
 
 Expected: fail because the quality tables and revision do not exist.
 
-- [ ] **Step 3: Implement table metadata**
+- [x] **Step 3: Implement table metadata**
 
 `data_quality_run` uses identity `BigInteger` primary key, text dataset/stage/status, `BigInteger`
 source watermark, timezone-aware timestamps, integer counts and `Numeric(5, 2)` score. Add:
@@ -243,13 +243,13 @@ sa.CheckConstraint("rows_evaluated >= 0 AND blocking_failures >= 0", name="ck_qu
 JSONB details and evaluation timestamp. Add status, score, non-negative-count and
 `failed_count <= checked_count` checks plus uniqueness on `(run_id, rule_code)`.
 
-- [ ] **Step 4: Implement Alembic revision `20260826_0004`**
+- [x] **Step 4: Implement Alembic revision `20260826_0004`**
 
 Set `down_revision = "20260823_0003"`. Create `data_quality_run` before
 `data_quality_result`; create indexes for run status/time and result rule/status. Downgrade drops the
 result table before the run table. Use the same types, names and constraints as metadata.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\integration\test_quality_migration.py -q -p no:cacheprovider --tb=short
@@ -258,7 +258,7 @@ result table before the run table. Use the same types, names and constraints as 
 
 Expected: migration contract passes against real PostgreSQL and head is restored.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add src/govinsight/quality/tables.py alembic/versions/20260826_0004_create_data_quality.py tests/integration/test_quality_migration.py
