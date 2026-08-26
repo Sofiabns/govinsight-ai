@@ -6,18 +6,18 @@ through APIs, dashboards, and guarded AI agents.
 
 ## Current status
 
-**Phase 4 — Silver / Transformation** converts immutable PNCP procurement responses into a typed,
-deduplicated current-state table. Invalid records are quarantined with safe reason codes, and a
-monotonic watermark makes each bounded run incremental and replay-safe.
+**Phase 5 — Data Quality** audits the procurement Silver snapshot with 12 blocking SQL rules, a
+weighted score from 0 to 100 and persisted rule-level evidence. Failed data remains auditable and
+cannot advance the quality watermark toward the future Gold warehouse.
 
 ## Architecture foundation
 
 ```text
-PNCP -> Bronze RAW -> Silver transformation -> PostgreSQL 16
-          |                  |                |
-     exact responses    Pydantic rules    typed current state
-                              |
-                       safe quarantine
+PNCP -> Bronze RAW -> Silver transformation -> Data quality gate -> PostgreSQL 16
+          |                  |                       |
+     exact responses    typed current state     score + evidence
+                              |                       |
+                       safe quarantine       blocking watermark
 ```
 
 The initial migration creates the `bronze`, `silver`, `gold`, and `control` schemas. It does
@@ -207,6 +207,33 @@ Re-running with no new RAW data processes zero responses. Newer records update t
 older versions never regress it, and a failed response leaves the watermark at the last confirmed
 RAW id so a later run can resume safely.
 
+## Data quality gate
+
+After Silver transformation, evaluate the newest procurement snapshot in one bounded call:
+
+```python
+from govinsight.config import Settings
+from govinsight.database.session import create_database_engine
+from govinsight.quality import DataQualityService
+
+engine = create_database_engine(Settings())
+try:
+    result = DataQualityService(engine).run_pending()
+    print(result.model_dump())
+finally:
+    engine.dispose()
+```
+
+The score weights completeness at 30%, validity at 25%, uniqueness at 20%, consistency at 15%
+and Bronze lineage integrity at 10%. Each rule persists checked and failed counts in
+`control.data_quality_result`; `control.data_quality_run` stores the snapshot score and status.
+
+Any blocking failure keeps the `quality` watermark at the last passing Silver snapshot while
+preserving aggregate evidence for investigation. Replaying a previously evaluated snapshot returns
+the existing run without duplicating results. After three passing runs, a row-count deviation above
+50% becomes a non-blocking `ROW_VOLUME_ANOMALY` warning. Quality evidence never stores PNCP payloads
+or free-form source values.
+
 ## Project structure
 
 ```text
@@ -217,6 +244,7 @@ src/govinsight/database/  SQLAlchemy connectivity boundary
 src/govinsight/extract/   PNCP query, retry, client, and pagination boundaries
 src/govinsight/raw/       Bronze identities, repositories, and ingestion service
 src/govinsight/transform/ Silver typing, quality rules, repositories, and service
+src/govinsight/quality/   SQL rules, weighted scoring, evidence, and quality gate
 src/govinsight/observability/ Structured logging
 tests/unit/               Fast deterministic tests
 tests/integration/        Real service contracts
@@ -225,6 +253,7 @@ tests/integration/        Real service contracts
 ## Current limitations
 
 - Silver currently covers procurement records; contract transformation is intentionally deferred.
+- Data-quality rules currently cover only the procurement Silver snapshot.
 - Silver is a current-state operational model, not yet an analytical star schema.
 - No analytical tables, dashboard, or AI agents exist yet.
 - The Compose defaults are intended only for local development.
