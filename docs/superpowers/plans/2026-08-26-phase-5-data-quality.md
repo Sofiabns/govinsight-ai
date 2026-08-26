@@ -205,9 +205,20 @@ The integration test downgrades to `20260823_0003`, upgrades to head and inspect
 assert {"data_quality_run", "data_quality_result"} <= set(
     inspector.get_table_names(schema="control")
 )
-assert {column["name"] for column in inspector.get_columns("data_quality_run", schema="control")} >= {
-    "id", "dataset", "stage", "source_watermark", "status", "started_at", "finished_at",
-    "rows_evaluated", "score", "blocking_failures", "error_code",
+assert {
+    column["name"] for column in inspector.get_columns("data_quality_run", schema="control")
+} >= {
+    "id",
+    "dataset",
+    "stage",
+    "source_watermark",
+    "status",
+    "started_at",
+    "finished_at",
+    "rows_evaluated",
+    "score",
+    "blocking_failures",
+    "error_code",
 }
 assert any(
     set(item["column_names"]) == {"dataset", "source_watermark"}
@@ -394,7 +405,7 @@ git commit -m "feat: add blocking data quality gate"
 - Consumes: fresh output from every Phase 5 gate.
 - Produces: reproducible quality execution and truthful `STAGE_STATUS`.
 
-- [ ] **Step 1: Document one bounded execution**
+- [x] **Step 1: Document one bounded execution**
 
 Add a README example:
 
@@ -414,7 +425,7 @@ finally:
 Explain score weights, blocking rules, persisted evidence, replay semantics, quality watermark and
 the procurement-only boundary.
 
-- [ ] **Step 2: Run final gates once**
+- [x] **Step 2: Run final gates once**
 
 ```powershell
 .\.venv\Scripts\ruff.exe check .
@@ -429,18 +440,18 @@ $env:GOVINSIGHT_POSTGRES_PORT = "54320"
 Expected: lint/format clean, all local/PostgreSQL tests pass, coverage is at least 80%, one live test
 is deselected and Alembic reports `20260826_0004 (head)`.
 
-- [ ] **Step 3: Perform the compact BUG HUNT**
+- [x] **Step 3: Perform the compact BUG HUNT**
 
 Inspect only: empty dataset, blank text, invalid UF, duplicate evidence, failed watermark, replay,
 score rounding, volume baseline, SQL failure sanitization and concurrent snapshot start. Add one
 focused regression only for a real defect.
 
-- [ ] **Step 4: Write measured checkpoint and close the plan**
+- [x] **Step 4: Write measured checkpoint and close the plan**
 
 Record exact files, test counts, coverage, rows checked, rule pass/fail/warning counts, score,
 problems, corrections, risks and Phase 6. Mark every checkbox only after evidence exists.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```powershell
 git diff --check
