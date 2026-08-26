@@ -6,18 +6,19 @@ through APIs, dashboards, and guarded AI agents.
 
 ## Current status
 
-**Phase 5 — Data Quality** audits the procurement Silver snapshot with 12 blocking SQL rules, a
-weighted score from 0 to 100 and persisted rule-level evidence. Failed data remains auditable and
-cannot advance the quality watermark toward the future Gold warehouse.
+**Phase 6 — Data Warehouse** turns the quality-approved procurement snapshot into a Gold star
+schema. Four dimensions and one fact preserve PNCP lineage, exact financial values and analytical
+joins without inventing contracts, suppliers or historical versions that the current Silver layer
+does not provide.
 
 ## Architecture foundation
 
 ```text
-PNCP -> Bronze RAW -> Silver transformation -> Data quality gate -> PostgreSQL 16
-          |                  |                       |
-     exact responses    typed current state     score + evidence
-                              |                       |
-                       safe quarantine       blocking watermark
+PNCP -> Bronze RAW -> Silver -> Data quality gate -> Gold star schema
+          |              |             |                    |
+     exact responses  typed state  score + evidence   dimensions + fact
+                         |             |                    |
+                  safe quarantine  approval watermark  reconciled money
 ```
 
 The initial migration creates the `bronze`, `silver`, `gold`, and `control` schemas. It does
@@ -234,6 +235,37 @@ the existing run without duplicating results. After three passing runs, a row-co
 50% becomes a non-blocking `ROW_VOLUME_ANOMALY` warning. Quality evidence never stores PNCP payloads
 or free-form source values.
 
+## Gold data warehouse
+
+After the current Silver snapshot passes the quality gate, load it into Gold in one bounded call:
+
+```python
+from govinsight.config import Settings
+from govinsight.database.session import create_database_engine
+from govinsight.warehouse import WarehouseLoadService
+
+engine = create_database_engine(Settings())
+try:
+    result = WarehouseLoadService(engine).run_pending()
+    print(result.status, result.source_watermark, result.rows_loaded)
+finally:
+    engine.dispose()
+```
+
+`gold.fact_procurement` has one current row per `numero_controle_pncp`. It joins to role-playing
+calendar dates plus organization, purchasing unit/location and modality dimensions. Organization,
+unit and modality descriptions use Type 1 updates: surrogate keys remain stable while current
+descriptions are replaced.
+
+The load proceeds only when the Silver and Quality watermarks identify the same nonzero snapshot.
+Dimension upserts, fact upserts, PK/FK checks, row-count reconciliation, lineage checks, exact
+monetary sums and Gold watermark advancement share one `REPEATABLE READ` transaction. A mismatch
+or failed reconciliation rolls everything back; an already loaded snapshot returns a no-op.
+
+Estimated and homologated values remain separate nullable `numeric(19,4)` measures. Homologated
+value is not contracted value. A contracted-total metric will be introduced only from a future
+contract fact backed by real PNCP contract data.
+
 ## Project structure
 
 ```text
@@ -245,6 +277,7 @@ src/govinsight/extract/   PNCP query, retry, client, and pagination boundaries
 src/govinsight/raw/       Bronze identities, repositories, and ingestion service
 src/govinsight/transform/ Silver typing, quality rules, repositories, and service
 src/govinsight/quality/   SQL rules, weighted scoring, evidence, and quality gate
+src/govinsight/warehouse/ Gold dimensions, procurement fact, reconciliation, and load service
 src/govinsight/observability/ Structured logging
 tests/unit/               Fast deterministic tests
 tests/integration/        Real service contracts
@@ -254,6 +287,8 @@ tests/integration/        Real service contracts
 
 - Silver currently covers procurement records; contract transformation is intentionally deferred.
 - Data-quality rules currently cover only the procurement Silver snapshot.
-- Silver is a current-state operational model, not yet an analytical star schema.
-- No analytical tables, dashboard, or AI agents exist yet.
+- Gold currently models procurement only; suppliers, contracts, items, categories and region
+  enrichment are intentionally deferred until trusted sources exist.
+- Silver and Gold are current-state models; historical SCD Type 2 analysis does not exist yet.
+- No dashboard or AI agents exist yet.
 - The Compose defaults are intended only for local development.

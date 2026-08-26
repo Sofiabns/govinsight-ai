@@ -67,12 +67,10 @@ assert expected <= set(inspector.get_table_names(schema="gold"))
 assert inspector.get_pk_constraint("fact_procurement", schema="gold")["constrained_columns"] == [
     "procurement_key"
 ]
-assert {item["name"] for item in inspector.get_unique_constraints(
-    "fact_procurement", schema="gold"
-)} >= {"uq_gold_fact_procurement_pncp"}
-assert {item["name"] for item in inspector.get_foreign_keys(
-    "fact_procurement", schema="gold"
-)} >= {
+assert {
+    item["name"] for item in inspector.get_unique_constraints("fact_procurement", schema="gold")
+} >= {"uq_gold_fact_procurement_pncp"}
+assert {item["name"] for item in inspector.get_foreign_keys("fact_procurement", schema="gold")} >= {
     "fk_gold_fact_organization",
     "fk_gold_fact_unit",
     "fk_gold_fact_modality",
@@ -100,7 +98,8 @@ Use the shared metadata and these stable identifiers:
 
 ```python
 dim_date = sa.Table(
-    "dim_date", metadata,
+    "dim_date",
+    metadata,
     sa.Column("date_key", sa.Integer(), primary_key=True),
     sa.Column("full_date", sa.Date(), nullable=False, unique=True),
     sa.Column("day", sa.SmallInteger(), nullable=False),
@@ -112,7 +111,8 @@ dim_date = sa.Table(
 )
 
 dim_organization = sa.Table(
-    "dim_organization", metadata,
+    "dim_organization",
+    metadata,
     sa.Column("organization_key", sa.BigInteger(), sa.Identity(), primary_key=True),
     sa.Column("orgao_cnpj", sa.CHAR(14), nullable=False, unique=True),
     sa.Column("orgao_razao_social", sa.Text(), nullable=False),
@@ -525,7 +525,7 @@ git commit -m "feat: add quality-gated gold load"
 - Consumes: verified Phase 6 commands and measured output from Tasks 1–3.
 - Produces: user-facing execution guidance, financial semantics, schema explanation, and reproducible gate evidence.
 
-- [ ] **Step 1: Update the README**
+- [x] **Step 1: Update the README**
 
 Change current status to Phase 6 and document:
 
@@ -547,7 +547,7 @@ print(result.status, result.source_watermark, result.rows_loaded)
 
 Explain the four dimensions, fact grain, exact equality gate, Type 1 limitation, and that contracted value will come only from the future contract fact. State explicitly that homologated value is not contracted value.
 
-- [ ] **Step 2: Run the focused phase gate once**
+- [x] **Step 2: Run the focused phase gate once**
 
 ```powershell
 $env:GOVINSIGHT_DATABASE_URL='postgresql+psycopg://govinsight_app:govinsight_local@127.0.0.1:54320/govinsight?connect_timeout=5'
@@ -556,12 +556,17 @@ $env:GOVINSIGHT_DATABASE_URL='postgresql+psycopg://govinsight_app:govinsight_loc
 
 Expected: all Phase 6 tests pass.
 
-- [ ] **Step 3: Run the complete regression and static gate once**
+- [x] **Step 3: Run the complete regression and static gate once**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --tb=short -m "not live_api" --cov=govinsight --cov-report=term-missing
 .\.venv\Scripts\ruff.exe check .
 .\.venv\Scripts\ruff.exe format --check .
+$env:GOVINSIGHT_POSTGRES_HOST='127.0.0.1'
+$env:GOVINSIGHT_POSTGRES_PORT='54320'
+$env:GOVINSIGHT_POSTGRES_DB='govinsight'
+$env:GOVINSIGHT_POSTGRES_USER='govinsight_app'
+$env:GOVINSIGHT_POSTGRES_PASSWORD='govinsight_local'
 .\.venv\Scripts\alembic.exe current
 .\.venv\Scripts\alembic.exe heads
 git diff --check
@@ -569,11 +574,11 @@ git diff --check
 
 Expected: non-live tests pass, coverage remains at least 80%, Ruff and whitespace checks pass, and both Alembic commands report `20260826_0005 (head)`.
 
-- [ ] **Step 4: Record measured evidence**
+- [x] **Step 4: Record measured evidence**
 
 Create `docs/checkpoints/phase-6.md` with the exact test count, coverage, Ruff result, Alembic head, schema grain, reconciliation invariants, and deferred entities. Do not write expected values as if they were measured.
 
-- [ ] **Step 5: Commit documentation**
+- [x] **Step 5: Commit documentation**
 
 ```powershell
 git add README.md docs/checkpoints/phase-6.md
