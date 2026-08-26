@@ -55,7 +55,7 @@
 - Consumes: no database state.
 - Produces: `QualityDimension`, `RuleSeverity`, `RuleStatus`, `QualityRunStatus`, `RuleEvaluation`, `QualityScore`, `DataQualityRunResult`, `calculate_quality_score(evaluations)`.
 
-- [ ] **Step 1: Write the focused failing scoring tests**
+- [x] **Step 1: Write the focused failing scoring tests**
 
 Define immutable models and assert exact decimal behavior:
 
@@ -86,7 +86,7 @@ def test_empty_dataset_is_zero_and_not_evaluated_rules_are_excluded() -> None:
     assert result.blocking_failures == 1
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run:
 
@@ -96,7 +96,7 @@ Run:
 
 Expected: collection fails because `govinsight.quality` does not exist.
 
-- [ ] **Step 3: Implement the contracts**
+- [x] **Step 3: Implement the contracts**
 
 Use string enums and frozen Pydantic models:
 
@@ -147,7 +147,7 @@ class RuleEvaluation(BaseModel):
 `score: Decimal | None`, `blocking_failures: int`, `evaluations: tuple[RuleEvaluation, ...]` and
 `reused: bool`.
 
-- [ ] **Step 4: Implement exact scoring**
+- [x] **Step 4: Implement exact scoring**
 
 Use these fixed weights:
 
@@ -167,7 +167,7 @@ average evaluated rules within the dimension and apply the fixed weights. `VOLUM
 weighted score. When `DATASET_NOT_EMPTY` fails, return overall `0.00`. Count failed blocking rules,
 not failed rows.
 
-- [ ] **Step 5: Run GREEN and quality checks**
+- [x] **Step 5: Run GREEN and quality checks**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\unit\quality\test_scoring.py -q -p no:cacheprovider --tb=short
@@ -177,7 +177,7 @@ not failed rows.
 
 Expected: focused tests and both Ruff checks pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add src/govinsight/quality tests/unit/quality/test_scoring.py
