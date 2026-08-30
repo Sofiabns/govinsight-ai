@@ -19,7 +19,8 @@
 - Load only when `silver_watermark == quality_watermark > gold_watermark`; return no-op only when all three are equal.
 - Use one `REPEATABLE READ` transaction for dimension/fact writes, reconciliation, and watermark advancement.
 - Acquire a PostgreSQL session advisory lock before opening the repeatable-read transaction so a
-  waiting load receives a fresh snapshot.
+  waiting load receives a fresh snapshot; reuse the same physical connection so the valid
+  `pool_size=1, max_overflow=0` configuration remains supported.
 - Do not delete Gold facts without an authoritative upstream deletion signal.
 - Do not rerun the live PNCP test; use one focused cycle per task and one complete regression gate at the end.
 

@@ -127,7 +127,7 @@ The fact retains null monetary values as null. It never coerces them to zero.
 The `govinsight.warehouse` package will separate table metadata, repositories, result/error models, and orchestration service, following the existing Raw, Silver, and Quality boundaries.
 
 The service serializes loads with a PostgreSQL session advisory lock acquired before opening one
-bounded database transaction with `REPEATABLE READ` isolation:
+bounded database transaction with `REPEATABLE READ` isolation on the same physical connection:
 
 1. acquire the warehouse session lock;
 2. open the repeatable-read transaction and read Gold, Silver, and Quality watermarks;
@@ -138,7 +138,7 @@ bounded database transaction with `REPEATABLE READ` isolation:
 7. upsert the fact by `numero_controle_pncp`;
 8. validate the completed star schema against Silver;
 9. advance the Gold watermark only after all validations pass;
-10. commit the transaction and release the session lock.
+10. commit the transaction, emit the completion log, and release the session lock.
 
 The Gold watermark uses the existing `control.etl_watermark` table with dataset `procurements`, stage `gold`, and a dedicated warehouse pipeline identifier. It stores the same `last_raw_response_id` snapshot marker used by Silver and Quality.
 
