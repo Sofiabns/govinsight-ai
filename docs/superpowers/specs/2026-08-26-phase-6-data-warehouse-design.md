@@ -126,10 +126,11 @@ The fact retains null monetary values as null. It never coerces them to zero.
 
 The `govinsight.warehouse` package will separate table metadata, repositories, result/error models, and orchestration service, following the existing Raw, Silver, and Quality boundaries.
 
-The service executes one bounded database transaction with `REPEATABLE READ` isolation:
+The service serializes loads with a PostgreSQL session advisory lock acquired before opening one
+bounded database transaction with `REPEATABLE READ` isolation:
 
-1. lock and read the Gold watermark;
-2. read the Silver and Quality watermarks;
+1. acquire the warehouse session lock;
+2. open the repeatable-read transaction and read Gold, Silver, and Quality watermarks;
 3. require Silver and Quality to be equal and greater than zero;
 4. return a no-op when Gold already represents that snapshot;
 5. reject a Gold watermark ahead of the approved source snapshot;
@@ -137,7 +138,7 @@ The service executes one bounded database transaction with `REPEATABLE READ` iso
 7. upsert the fact by `numero_controle_pncp`;
 8. validate the completed star schema against Silver;
 9. advance the Gold watermark only after all validations pass;
-10. commit the transaction.
+10. commit the transaction and release the session lock.
 
 The Gold watermark uses the existing `control.etl_watermark` table with dataset `procurements`, stage `gold`, and a dedicated warehouse pipeline identifier. It stores the same `last_raw_response_id` snapshot marker used by Silver and Quality.
 
@@ -157,7 +158,10 @@ No-op is valid only when:
 silver_watermark == quality_watermark == gold_watermark
 ```
 
-Missing, malformed, regressed, or contradictory watermark state raises a warehouse state error and leaves Gold unchanged.
+Silver and Quality watermark rows are required; their absence raises
+`APPROVED_SNAPSHOT_UNAVAILABLE`. An absent Gold watermark represents the first load and starts at
+zero. Malformed, regressed, or contradictory state raises a warehouse state error and leaves Gold
+unchanged.
 
 ## Reconciliation Invariants
 
@@ -209,6 +213,7 @@ Testing remains focused:
 - update test proving Type 1 dimension and fact upserts;
 - blocked-load test for Silver/Quality mismatch;
 - rollback test proving a failed reconciliation cannot advance the watermark.
+- concurrent-load test proving exactly one load and one no-op without serialization failure.
 
 Final phase verification runs the focused Phase 6 suite, the existing regression suite once, Ruff once, and confirms the Alembic head.
 
