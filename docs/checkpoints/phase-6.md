@@ -18,7 +18,7 @@ Fatos Gold: 1
 Grão da fato: 1 contratação por numero_controle_pncp
 Problemas encontrados: 13
 Correções realizadas: 13
-Próxima etapa: Fase 7 — API analítica
+Próxima etapa: Fase 7 — Analytics
 --------------------------------
 
 STAGE_STATUS = PASSED
@@ -118,5 +118,5 @@ na Silver.
 
 ## Próxima etapa
 
-Construir a Fase 7 — API analítica sobre o warehouse Gold, expondo filtros e agregações confiáveis
-sem permitir que clientes confundam medidas estimadas, homologadas e contratadas.
+Construir a Fase 7 — Analytics sobre o warehouse Gold, definindo KPIs, filtros e agregações
+confiáveis sem confundir medidas estimadas, homologadas e contratadas.

@@ -6,19 +6,19 @@ through APIs, dashboards, and guarded AI agents.
 
 ## Current status
 
-**Phase 6 — Data Warehouse** turns the quality-approved procurement snapshot into a Gold star
-schema. Four dimensions and one fact preserve PNCP lineage, exact financial values and analytical
-joins without inventing contracts, suppliers or historical versions that the current Silver layer
-does not provide.
+**Phase 7 — Analytics** adds a canonical PostgreSQL metric layer and a typed Python query service
+over the quality-approved Gold star. It exposes exact procurement KPIs, rankings, monthly trends,
+distributions and statistical outliers without inventing unavailable supplier, category, region or
+contract metrics.
 
 ## Architecture foundation
 
 ```text
-PNCP -> Bronze RAW -> Silver -> Data quality gate -> Gold star schema
-          |              |             |                    |
-     exact responses  typed state  score + evidence   dimensions + fact
-                         |             |                    |
-                  safe quarantine  approval watermark  reconciled money
+PNCP -> Bronze RAW -> Silver -> Data quality gate -> Gold star -> Analytics
+          |              |             |                  |          |
+     exact responses  typed state  score + evidence  dimensions  KPIs + IQR
+                         |             |                  |          |
+                  safe quarantine  approval watermark  exact money  evidence
 ```
 
 The initial migration creates the `bronze`, `silver`, `gold`, and `control` schemas. It does
@@ -269,6 +269,37 @@ Estimated and homologated values remain separate nullable `numeric(19,4)` measur
 value is not contracted value. A contracted-total metric will be introduced only from a future
 contract fact backed by real PNCP contract data.
 
+## Procurement analytics
+
+Use the analytical service after applying Alembic revision `20260830_0006`:
+
+```python
+from govinsight.analytics import AnalyticsFilters, AnalyticsService, Measure, RankDimension
+from govinsight.config import Settings
+from govinsight.database.session import create_database_engine
+
+engine = create_database_engine(Settings())
+try:
+    analytics = AnalyticsService(engine)
+    summary = analytics.summary(AnalyticsFilters(uf="SP"))
+    organizations = analytics.rank(RankDimension.ORGANIZATION, limit=10)
+    trends = analytics.monthly_trend()
+    distribution = analytics.distribution(Measure.HOMOLOGATED)
+    outliers = analytics.outliers(Measure.HOMOLOGATED)
+finally:
+    engine.dispose()
+```
+
+The canonical views provide overall, organization, state, modality and publication-month metrics.
+Counts include all matching procurements; each monetary average includes only rows where that
+measure is present. Shares are null when their denominator is zero. Month-over-month growth is null
+when the immediately preceding calendar month is absent or has a zero total.
+
+IQR outliers use exact decimal quartiles and require at least four non-null observations. They are
+descriptive evidence of unusual magnitude, not claims of fraud or irregularity. Estimated and
+homologated metrics remain explicitly separate; the analytics layer does not expose contracted
+value, suppliers, categories or regions because those trusted Gold entities do not exist yet.
+
 ## Project structure
 
 ```text
@@ -281,6 +312,7 @@ src/govinsight/raw/       Bronze identities, repositories, and ingestion service
 src/govinsight/transform/ Silver typing, quality rules, repositories, and service
 src/govinsight/quality/   SQL rules, weighted scoring, evidence, and quality gate
 src/govinsight/warehouse/ Gold dimensions, procurement fact, reconciliation, and load service
+src/govinsight/analytics/ Typed KPIs, rankings, trends, distributions, and statistical outliers
 src/govinsight/observability/ Structured logging
 tests/unit/               Fast deterministic tests
 tests/integration/        Real service contracts
