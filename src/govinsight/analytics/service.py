@@ -51,9 +51,7 @@ class AnalyticsService:
         logger.info("analytics_ranking_completed", dimension=dimension, rows=len(result))
         return result
 
-    def monthly_trend(
-        self, filters: AnalyticsFilters | None = None
-    ) -> tuple[MonthlyTrend, ...]:
+    def monthly_trend(self, filters: AnalyticsFilters | None = None) -> tuple[MonthlyTrend, ...]:
         selected = filters or AnalyticsFilters()
         with self._engine.connect() as connection:
             rows = self._repository.monthly(connection, selected)
@@ -69,9 +67,7 @@ class AnalyticsService:
             rows = self._repository.values(connection, measure, selected)
         return describe([row.value for row in rows], measure)
 
-    def outliers(
-        self, measure: Measure, filters: AnalyticsFilters | None = None
-    ) -> OutlierResult:
+    def outliers(self, measure: Measure, filters: AnalyticsFilters | None = None) -> OutlierResult:
         selected = filters or AnalyticsFilters()
         with self._engine.connect() as connection:
             rows = self._repository.values(connection, measure, selected)

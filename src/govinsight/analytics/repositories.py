@@ -42,9 +42,7 @@ def _apply_filters(statement: sa.Select, filters: AnalyticsFilters) -> sa.Select
     if filters.end_date is not None:
         statement = statement.where(analytics_base.c.publication_date <= filters.end_date)
     if filters.organization_key is not None:
-        statement = statement.where(
-            analytics_base.c.organization_key == filters.organization_key
-        )
+        statement = statement.where(analytics_base.c.organization_key == filters.organization_key)
     if filters.uf is not None:
         statement = statement.where(
             sa.func.coalesce(analytics_base.c.uf_sigla, "UNKNOWN") == filters.uf
@@ -61,9 +59,7 @@ class AnalyticsRepository:
             sa.func.count(analytics_base.c.valor_total_estimado).label("estimated_value_count"),
             sa.func.sum(analytics_base.c.valor_total_estimado).label("estimated_total"),
             sa.func.avg(analytics_base.c.valor_total_estimado).label("estimated_average"),
-            sa.func.count(analytics_base.c.valor_total_homologado).label(
-                "homologated_value_count"
-            ),
+            sa.func.count(analytics_base.c.valor_total_homologado).label("homologated_value_count"),
             sa.func.sum(analytics_base.c.valor_total_homologado).label("homologated_total"),
             sa.func.avg(analytics_base.c.valor_total_homologado).label("homologated_average"),
         ).select_from(analytics_base)
@@ -83,9 +79,9 @@ class AnalyticsRepository:
             group_columns = [analytics_base.c.organization_key, analytics_base.c.orgao_razao_social]
         elif dimension is RankDimension.STATE:
             key = sa.func.coalesce(analytics_base.c.uf_sigla, "UNKNOWN").label("key")
-            label = sa.func.coalesce(
-                analytics_base.c.uf_nome, "Localidade não informada"
-            ).label("label")
+            label = sa.func.coalesce(analytics_base.c.uf_nome, "Localidade não informada").label(
+                "label"
+            )
             group_columns = [key, label]
         else:
             key = sa.cast(analytics_base.c.modality_key, sa.Text()).label("key")
@@ -126,12 +122,8 @@ class AnalyticsRepository:
                 sa.func.count().label("procurement_count"),
                 sa.func.sum(analytics_base.c.valor_total_estimado).label("estimated_total"),
                 sa.func.avg(analytics_base.c.valor_total_estimado).label("estimated_average"),
-                sa.func.sum(analytics_base.c.valor_total_homologado).label(
-                    "homologated_total"
-                ),
-                sa.func.avg(analytics_base.c.valor_total_homologado).label(
-                    "homologated_average"
-                ),
+                sa.func.sum(analytics_base.c.valor_total_homologado).label("homologated_total"),
+                sa.func.avg(analytics_base.c.valor_total_homologado).label("homologated_average"),
             ).select_from(analytics_base),
             filters,
         ).group_by(month)
@@ -146,9 +138,7 @@ class AnalyticsRepository:
             .over(order_by=monthly.c.month)
             .label("previous_homologated_total"),
         ).subquery()
-        prior_calendar_month = sa.cast(
-            lagged.c.month - sa.text("INTERVAL '1 month'"), sa.Date()
-        )
+        prior_calendar_month = sa.cast(lagged.c.month - sa.text("INTERVAL '1 month'"), sa.Date())
         statement = sa.select(
             lagged.c.month,
             lagged.c.procurement_count,
@@ -187,8 +177,7 @@ class AnalyticsRepository:
             filters,
         ).order_by(analytics_base.c.numero_controle_pncp)
         return [
-            ValueRow(row.numero_controle_pncp, row.value)
-            for row in connection.execute(statement)
+            ValueRow(row.numero_controle_pncp, row.value) for row in connection.execute(statement)
         ]
 
 

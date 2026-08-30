@@ -57,9 +57,7 @@ def test_analytics_migration_creates_reversible_metric_views(
         } <= base_columns
 
         command.downgrade(config, "20260826_0005")
-        assert ANALYTICS_VIEWS.isdisjoint(
-            inspect(engine).get_view_names(schema="gold")
-        )
+        assert ANALYTICS_VIEWS.isdisjoint(inspect(engine).get_view_names(schema="gold"))
     finally:
         command.upgrade(config, "head")
         engine.dispose()
