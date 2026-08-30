@@ -9,15 +9,15 @@ Data: 2026-08-30
 Branch: feat/phase-6-data-warehouse-impl
 Arquivos criados: 9
 Arquivos alterados: 2
-Testes específicos da fase: 7/7
-Testes aprovados no gate final: 126/126
+Testes específicos da fase: 8/8
+Testes aprovados no gate final: 127/127
 Teste PNCP ao vivo: 1 não executado por estar fora do escopo
-Cobertura final: 92,15%
+Cobertura final: 92,08%
 Dimensões Gold: 4
 Fatos Gold: 1
 Grão da fato: 1 contratação por numero_controle_pncp
-Problemas encontrados: 10
-Correções realizadas: 10
+Problemas encontrados: 13
+Correções realizadas: 13
 Próxima etapa: Fase 7 — API analítica
 --------------------------------
 
@@ -39,9 +39,9 @@ desfaz todas as alterações.
 
 | Gate | Resultado |
 |---|---|
-| Testes específicos da Fase 6 | PASS — 7/7 |
-| Suíte local + PostgreSQL | PASS — 126/126; 1 teste externo não executado |
-| Cobertura combinada | PASS — 92,15%, mínimo 80% |
+| Testes específicos da Fase 6 | PASS — 8/8 |
+| Suíte local + PostgreSQL | PASS — 127/127; 1 teste externo não executado |
+| Cobertura combinada | PASS — 92,08%, mínimo 80% |
 | `ruff check .` | PASS — zero erros |
 | `ruff format --check .` | PASS — 88 arquivos formatados |
 | Migração atual | PASS — `20260826_0005 (head)` |
@@ -68,6 +68,7 @@ na Silver.
 9. Um snapshot posterior com uma contratação alterada e outra inalterada preservou os timestamps
    da linha que não mudou.
 10. Watermarks Silver ou Quality ausentes foram rejeitados como snapshot aprovado indisponível.
+11. A carga completou com `pool_size=1` e `max_overflow=0`, sem solicitar uma segunda conexão.
 
 ## Garantias analíticas
 
@@ -100,6 +101,12 @@ na Silver.
 - O desempate dimensional ganhou índice de registro e chave PNCP para permanecer determinístico.
 - Os testes passaram a validar publicação, abertura e encerramento separadamente.
 - A carga passou a emitir logs estruturados seguros somente com watermarks, status e contagens.
+- A primeira correção da trava usava duas conexões e bloqueava um pool unitário; trava e transação
+  agora reutilizam a mesma conexão física.
+- O teste concorrente liberava a trava antes de comprovar a espera; ele agora observa dois waiters
+  PostgreSQL antes da liberação.
+- O evento de conclusão era emitido antes da confirmação do commit; agora só é registrado após o
+  encerramento bem-sucedido da transação.
 
 ## Riscos e limites restantes
 

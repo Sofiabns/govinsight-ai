@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -286,6 +287,23 @@ def _gold_counts(engine: Engine, scope: WarehouseTestScope) -> tuple[int, int, i
 def _gold_watermark(engine: Engine) -> int:
     with engine.connect() as connection:
         return WarehouseWatermarkRepository().read_state(connection).gold
+
+
+def _wait_for_advisory_waiters(engine: Engine, expected: int) -> None:
+    deadline = time.monotonic() + 5
+    with engine.connect() as connection:
+        while time.monotonic() < deadline:
+            waiters = connection.execute(
+                sa.text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() "
+                    "AND wait_event_type = 'Lock' AND lower(wait_event) = 'advisory'"
+                )
+            ).scalar_one()
+            if waiters >= expected:
+                return
+            time.sleep(0.01)
+    raise AssertionError(f"expected {expected} advisory lock waiters")
 
 
 @pytest.mark.integration
@@ -588,6 +606,7 @@ def test_concurrent_loads_serialize_and_second_returns_noop(engine: Engine) -> N
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = [executor.submit(WarehouseLoadService(engine).run_pending) for _ in range(2)]
+            _wait_for_advisory_waiters(engine, expected=2)
             lock_connection.execute(
                 sa.select(
                     sa.func.pg_advisory_unlock(sa.func.hashtext("gold_procurement:procurements"))
@@ -606,4 +625,27 @@ def test_concurrent_loads_serialize_and_second_returns_noop(engine: Engine) -> N
             sa.select(sa.func.pg_advisory_unlock(sa.func.hashtext("gold_procurement:procurements")))
         )
         lock_connection.close()
+        _cleanup(engine, scope)
+
+
+@pytest.mark.integration
+def test_load_works_with_single_connection_pool(engine: Engine) -> None:
+    """Catch warehouse locking that deadlocks while requesting a second pooled connection."""
+    scope = _start_scope(engine)
+    source_watermark = _seed_silver(engine, _records(scope), scope)
+    _approve_quality(engine, source_watermark)
+    single_connection_engine = create_engine(
+        engine.url,
+        pool_size=1,
+        max_overflow=0,
+        pool_timeout=1,
+        pool_pre_ping=True,
+    )
+
+    try:
+        result = WarehouseLoadService(single_connection_engine).run_pending()
+        assert result.status is WarehouseLoadStatus.LOADED
+        assert result.source_watermark == source_watermark
+    finally:
+        single_connection_engine.dispose()
         _cleanup(engine, scope)

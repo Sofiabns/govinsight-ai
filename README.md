@@ -259,10 +259,11 @@ descriptions are replaced.
 
 The load proceeds only when the required Silver and Quality watermarks identify the same nonzero
 snapshot. A session advisory lock serializes concurrent callers before the `REPEATABLE READ`
-transaction begins. Dimension upserts, fact upserts, PK/FK checks, row-count reconciliation,
+transaction begins on the same database connection. Dimension upserts, fact upserts, PK/FK checks, row-count reconciliation,
 lineage checks, exact monetary sums and Gold watermark advancement share that transaction. A
 mismatch or failed reconciliation rolls everything back; an already loaded snapshot returns a
-no-op. Operational logs contain only watermarks, status and aggregate counts.
+no-op. Operational logs contain only watermarks, status and aggregate counts, and completion is
+emitted only after a successful commit.
 
 Estimated and homologated values remain separate nullable `numeric(19,4)` measures. Homologated
 value is not contracted value. A contracted-total metric will be introduced only from a future
