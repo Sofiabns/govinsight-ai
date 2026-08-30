@@ -5,19 +5,19 @@ CHECKPOINT
 --------------------------------
 Fase: 6 — Data Warehouse
 Status: PASSED
-Data: 2026-08-26
+Data: 2026-08-30
 Branch: feat/phase-6-data-warehouse-impl
 Arquivos criados: 9
 Arquivos alterados: 2
-Testes específicos da fase: 6/6
-Testes aprovados no gate final: 125/125
+Testes específicos da fase: 7/7
+Testes aprovados no gate final: 126/126
 Teste PNCP ao vivo: 1 não executado por estar fora do escopo
-Cobertura final: 92,19%
+Cobertura final: 92,15%
 Dimensões Gold: 4
 Fatos Gold: 1
 Grão da fato: 1 contratação por numero_controle_pncp
-Problemas encontrados: 3
-Correções realizadas: 3
+Problemas encontrados: 10
+Correções realizadas: 10
 Próxima etapa: Fase 7 — API analítica
 --------------------------------
 
@@ -39,9 +39,9 @@ desfaz todas as alterações.
 
 | Gate | Resultado |
 |---|---|
-| Testes específicos da Fase 6 | PASS — 6/6 |
-| Suíte local + PostgreSQL | PASS — 125/125; 1 teste externo não executado |
-| Cobertura combinada | PASS — 92,19%, mínimo 80% |
+| Testes específicos da Fase 6 | PASS — 7/7 |
+| Suíte local + PostgreSQL | PASS — 126/126; 1 teste externo não executado |
+| Cobertura combinada | PASS — 92,15%, mínimo 80% |
 | `ruff check .` | PASS — zero erros |
 | `ruff format --check .` | PASS — 88 arquivos formatados |
 | Migração atual | PASS — `20260826_0005 (head)` |
@@ -64,6 +64,10 @@ na Silver.
 6. Um snapshot posterior atualizou descrições e valor em Tipo 1, preservando todas as chaves
    substitutas e a data original de criação da fato.
 7. Uma reconciliação inválida injetada reverteu dimensões, fato e watermark na mesma transação.
+8. Duas cargas concorrentes produziram exatamente uma carga e um `NOOP`, sem erro de serialização.
+9. Um snapshot posterior com uma contratação alterada e outra inalterada preservou os timestamps
+   da linha que não mudou.
+10. Watermarks Silver ou Quality ausentes foram rejeitados como snapshot aprovado indisponível.
 
 ## Garantias analíticas
 
@@ -85,6 +89,17 @@ na Silver.
 - A checagem manual do Alembic recebeu somente `GOVINSIGHT_DATABASE_URL`, mas o ambiente de migração
   lê variáveis PostgreSQL individuais. A verificação foi repetida explicitamente na porta isolada
   `54320` e confirmou a revisão correta.
+- A primeira trava transacional fixava o snapshot antes de terminar a espera; ela foi substituída
+  por uma advisory lock de sessão adquirida antes de abrir `REPEATABLE READ`.
+- A limpeza de integração removia dados globais; cada cenário agora usa chaves próprias, remove
+  somente suas linhas e restaura os três watermarks que encontrou.
+- A ausência de aprovação era confundida com watermark zero; Silver e Quality agora são
+  obrigatórias, enquanto apenas a Gold pode estar ausente na primeira carga.
+- UPSERTs posteriores atualizavam timestamps de linhas inalteradas; condições `IS DISTINCT FROM`
+  agora evitam escrita e WAL desnecessários.
+- O desempate dimensional ganhou índice de registro e chave PNCP para permanecer determinístico.
+- Os testes passaram a validar publicação, abertura e encerramento separadamente.
+- A carga passou a emitir logs estruturados seguros somente com watermarks, status e contagens.
 
 ## Riscos e limites restantes
 

@@ -1,4 +1,7 @@
+import sqlalchemy as sa
 from sqlalchemy import Connection, Engine
+
+from govinsight.observability.logging import get_logger
 
 from .models import (
     WarehouseLoadResult,
@@ -8,29 +11,71 @@ from .models import (
 )
 from .repositories import WarehouseRepository, WarehouseWatermarkRepository
 
+WAREHOUSE_LOCK_KEY = "gold_procurement:procurements"
+
 
 class WarehouseLoadService:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
         self._watermarks = WarehouseWatermarkRepository()
         self._warehouse = WarehouseRepository()
+        self._logger = get_logger(__name__)
 
     def run_pending(self) -> WarehouseLoadResult:
+        with self._engine.connect() as lock_connection:
+            lock_connection = lock_connection.execution_options(isolation_level="AUTOCOMMIT")
+            lock_connection.execute(
+                sa.select(sa.func.pg_advisory_lock(sa.func.hashtext(WAREHOUSE_LOCK_KEY)))
+            )
+            try:
+                return self._run_transaction()
+            finally:
+                lock_connection.execute(
+                    sa.select(sa.func.pg_advisory_unlock(sa.func.hashtext(WAREHOUSE_LOCK_KEY)))
+                )
+
+    def _run_transaction(self) -> WarehouseLoadResult:
         with self._engine.connect() as connection:
             connection = connection.execution_options(isolation_level="REPEATABLE READ")
             with connection.begin():
-                state = self._watermarks.read_state(connection, lock_gold=True)
+                state = self._watermarks.read_state(connection)
+                self._logger.info(
+                    "warehouse_load_started",
+                    silver_watermark=state.silver,
+                    quality_watermark=state.quality,
+                    gold_watermark=state.gold,
+                )
                 early_result = self._early_result(connection, state)
                 if early_result is not None:
+                    self._logger.info(
+                        "warehouse_load_noop",
+                        source_watermark=early_result.source_watermark,
+                        rows_loaded=early_result.rows_loaded,
+                    )
                     return early_result
 
                 self._warehouse.load_dimensions(connection)
                 rows_loaded = self._warehouse.load_facts(connection)
                 reconciliation = self._warehouse.reconcile(connection)
                 if not reconciliation.is_valid:
+                    self._logger.warning(
+                        "warehouse_reconciliation_failed",
+                        source_watermark=state.silver,
+                        silver_rows=reconciliation.silver_rows,
+                        fact_rows=reconciliation.fact_rows,
+                        missing_in_fact=reconciliation.missing_in_fact,
+                        missing_in_silver=reconciliation.missing_in_silver,
+                        orphan_foreign_keys=reconciliation.orphan_foreign_keys,
+                        lineage_mismatches=reconciliation.lineage_mismatches,
+                    )
                     raise WarehouseStateError("RECONCILIATION_FAILED")
 
                 self._watermarks.advance(connection, state.silver)
+                self._logger.info(
+                    "warehouse_load_completed",
+                    source_watermark=state.silver,
+                    rows_loaded=rows_loaded,
+                )
                 return WarehouseLoadResult(
                     status=WarehouseLoadStatus.LOADED,
                     source_watermark=state.silver,

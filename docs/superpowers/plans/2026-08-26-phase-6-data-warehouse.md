@@ -18,6 +18,8 @@
 - Use Type 1 updates for organization, unit, and modality dimensions.
 - Load only when `silver_watermark == quality_watermark > gold_watermark`; return no-op only when all three are equal.
 - Use one `REPEATABLE READ` transaction for dimension/fact writes, reconciliation, and watermark advancement.
+- Acquire a PostgreSQL session advisory lock before opening the repeatable-read transaction so a
+  waiting load receives a fresh snapshot.
 - Do not delete Gold facts without an authoritative upstream deletion signal.
 - Do not rerun the live PNCP test; use one focused cycle per task and one complete regression gate at the end.
 
@@ -302,7 +304,11 @@ QUALITY_PIPELINE = "data_quality"
 WAREHOUSE_PIPELINE = "gold_procurement"
 ```
 
-`WarehouseWatermarkRepository.read_state(connection, lock_gold=True)` must parse nonnegative integer `last_raw_response_id` values for Silver, Quality, and Gold, returning a frozen `WarehouseWatermarkState`. Missing rows mean zero; malformed JSON or negative values raise `WarehouseStateError("INVALID_WATERMARK")`. `advance(connection, raw_response_id)` performs a monotonic PostgreSQL upsert for the Gold key.
+`WarehouseWatermarkRepository.read_state(connection)` must parse nonnegative integer
+`last_raw_response_id` values. Silver and Quality rows are mandatory and their absence raises
+`WarehouseStateError("APPROVED_SNAPSHOT_UNAVAILABLE")`; an absent Gold row means zero for the first
+load. Malformed JSON or negative values raise `WarehouseStateError("INVALID_WATERMARK")`.
+`advance(connection, raw_response_id)` performs a monotonic PostgreSQL upsert for the Gold key.
 
 - [x] **Step 5: Implement set-based Type 1 upserts**
 
@@ -389,7 +395,7 @@ def test_approved_snapshot_loads_and_exact_replay_is_noop(engine: Engine) -> Non
 
 def test_silver_quality_mismatch_blocks_without_gold_writes(engine: Engine) -> None:
     seed_watermarks(engine, silver=20, quality=19, gold=0)
-    with pytest.raises(WarehouseStateError, match="UNAPPROVED_SILVER_SNAPSHOT"):
+    with pytest.raises(WarehouseStateError, match="APPROVED_SNAPSHOT_UNAVAILABLE"):
         WarehouseLoadService(engine).run_pending()
     assert gold_counts(engine) == (0, 0, 0, 0, 0)
     assert gold_watermark(engine) == 0
@@ -462,7 +468,7 @@ if state.gold == state.quality:
     return noop(state.gold)
 ```
 
-This makes missing Quality approval, failed newer Quality snapshots, and contradictory progress explicit.
+This makes missing Quality approval, failed newer Quality snapshots, and contradictory progress explicit. A session advisory lock wraps this decision before `REPEATABLE READ` begins, so concurrent callers serialize and the second caller observes the committed Gold watermark.
 
 - [x] **Step 4: Implement the transaction**
 
@@ -477,7 +483,7 @@ class WarehouseLoadService:
         with self._engine.connect() as connection:
             connection = connection.execution_options(isolation_level="REPEATABLE READ")
             with connection.begin():
-                state = self._watermarks.read_state(connection, lock_gold=True)
+                state = self._watermarks.read_state(connection)
                 early_result = self._validate_state(state)
                 if early_result is not None:
                     return early_result

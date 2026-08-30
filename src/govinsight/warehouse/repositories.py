@@ -27,33 +27,31 @@ def _watermark_key(pipeline: str, stage: str) -> tuple[sa.ColumnElement[bool], .
 
 class WarehouseWatermarkRepository:
     @staticmethod
-    def _read(connection: Connection, pipeline: str, stage: str) -> int:
-        value = connection.execute(
+    def _read(
+        connection: Connection,
+        pipeline: str,
+        stage: str,
+        *,
+        required: bool,
+    ) -> int:
+        row = connection.execute(
             sa.select(etl_watermark.c.watermark_value).where(*_watermark_key(pipeline, stage))
-        ).scalar_one_or_none()
-        if value is None:
+        ).one_or_none()
+        if row is None:
+            if required:
+                raise WarehouseStateError("APPROVED_SNAPSHOT_UNAVAILABLE")
             return 0
+        value = row.watermark_value
         raw_id = value.get("last_raw_response_id") if isinstance(value, dict) else None
         if not isinstance(raw_id, int) or isinstance(raw_id, bool) or raw_id < 0:
             raise WarehouseStateError("INVALID_WATERMARK")
         return raw_id
 
-    def read_state(
-        self,
-        connection: Connection,
-        *,
-        lock_gold: bool = True,
-    ) -> WarehouseWatermarkState:
-        if lock_gold:
-            connection.execute(
-                sa.select(
-                    sa.func.pg_advisory_xact_lock(sa.func.hashtext("gold_procurement:procurements"))
-                )
-            )
+    def read_state(self, connection: Connection) -> WarehouseWatermarkState:
         return WarehouseWatermarkState(
-            silver=self._read(connection, SILVER_PIPELINE, "silver"),
-            quality=self._read(connection, QUALITY_PIPELINE, "quality"),
-            gold=self._read(connection, WAREHOUSE_PIPELINE, "gold"),
+            silver=self._read(connection, SILVER_PIPELINE, "silver", required=True),
+            quality=self._read(connection, QUALITY_PIPELINE, "quality", required=True),
+            gold=self._read(connection, WAREHOUSE_PIPELINE, "gold", required=False),
         )
 
     def advance(self, connection: Connection, raw_response_id: int) -> None:
@@ -93,6 +91,8 @@ def _latest_by(*natural_key: sa.Column) -> sa.Select:
             *natural_key,
             procurement.c.data_atualizacao_global.desc(),
             procurement.c.source_raw_response_id.desc(),
+            procurement.c.source_record_index.desc(),
+            procurement.c.numero_controle_pncp.desc(),
         )
     )
 
@@ -103,6 +103,14 @@ def _date_key(value: sa.ColumnElement) -> sa.ColumnElement:
         + sa.cast(sa.extract("month", value), sa.Integer()) * 100
         + sa.cast(sa.extract("day", value), sa.Integer())
     )
+
+
+def _changed(
+    table: sa.Table,
+    excluded,
+    columns: list[str],
+) -> sa.ColumnElement[bool]:
+    return sa.or_(*(table.c[name].is_distinct_from(getattr(excluded, name)) for name in columns))
 
 
 class WarehouseRepository:
@@ -184,6 +192,11 @@ class WarehouseRepository:
                     "esfera_id": statement.excluded.esfera_id,
                     "updated_at": statement.excluded.updated_at,
                 },
+                where=_changed(
+                    dim_organization,
+                    statement.excluded,
+                    ["orgao_razao_social", "poder_id", "esfera_id"],
+                ),
             )
         )
 
@@ -226,6 +239,17 @@ class WarehouseRepository:
                     "uf_nome": statement.excluded.uf_nome,
                     "updated_at": statement.excluded.updated_at,
                 },
+                where=_changed(
+                    dim_unit,
+                    statement.excluded,
+                    [
+                        "nome_unidade",
+                        "codigo_ibge",
+                        "municipio_nome",
+                        "uf_sigla",
+                        "uf_nome",
+                    ],
+                ),
             )
         )
 
@@ -248,6 +272,11 @@ class WarehouseRepository:
                     "modalidade_nome": statement.excluded.modalidade_nome,
                     "updated_at": statement.excluded.updated_at,
                 },
+                where=_changed(
+                    dim_modality,
+                    statement.excluded,
+                    ["modalidade_nome"],
+                ),
             )
         )
 
@@ -342,6 +371,7 @@ class WarehouseRepository:
             statement.on_conflict_do_update(
                 constraint="uq_gold_fact_procurement_pncp",
                 set_=update_values,
+                where=_changed(fact_procurement, statement.excluded, mutable),
             )
         )
         return self._count(connection, fact_procurement)

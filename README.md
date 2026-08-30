@@ -257,10 +257,12 @@ calendar dates plus organization, purchasing unit/location and modality dimensio
 unit and modality descriptions use Type 1 updates: surrogate keys remain stable while current
 descriptions are replaced.
 
-The load proceeds only when the Silver and Quality watermarks identify the same nonzero snapshot.
-Dimension upserts, fact upserts, PK/FK checks, row-count reconciliation, lineage checks, exact
-monetary sums and Gold watermark advancement share one `REPEATABLE READ` transaction. A mismatch
-or failed reconciliation rolls everything back; an already loaded snapshot returns a no-op.
+The load proceeds only when the required Silver and Quality watermarks identify the same nonzero
+snapshot. A session advisory lock serializes concurrent callers before the `REPEATABLE READ`
+transaction begins. Dimension upserts, fact upserts, PK/FK checks, row-count reconciliation,
+lineage checks, exact monetary sums and Gold watermark advancement share that transaction. A
+mismatch or failed reconciliation rolls everything back; an already loaded snapshot returns a
+no-op. Operational logs contain only watermarks, status and aggregate counts.
 
 Estimated and homologated values remain separate nullable `numeric(19,4)` measures. Homologated
 value is not contracted value. A contracted-total metric will be introduced only from a future
