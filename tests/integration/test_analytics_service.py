@@ -223,18 +223,14 @@ def analytics_sample(engine: Engine) -> dict[str, object]:
                 dim_unit.delete().where(dim_unit.c.codigo_unidade.in_(sample["unit_codes"]))
             )
             connection.execute(
-                dim_organization.delete().where(
-                    dim_organization.c.orgao_cnpj.in_(sample["cnpjs"])
-                )
+                dim_organization.delete().where(dim_organization.c.orgao_cnpj.in_(sample["cnpjs"]))
             )
             connection.execute(
                 dim_modality.delete().where(
                     dim_modality.c.modalidade_id.in_(sample["modality_ids"])
                 )
             )
-            connection.execute(
-                dim_date.delete().where(dim_date.c.full_date.in_(sample["dates"]))
-            )
+            connection.execute(dim_date.delete().where(dim_date.c.full_date.in_(sample["dates"])))
             connection.execute(
                 raw_api_response.delete().where(raw_api_response.c.id == sample["raw_id"])
             )
