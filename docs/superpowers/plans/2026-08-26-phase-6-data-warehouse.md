@@ -592,6 +592,6 @@ git add README.md docs/checkpoints/phase-6.md
 git commit -m "docs: add phase 6 warehouse guide and checkpoint"
 ```
 
-- [ ] **Step 6: Request final review and address only actionable findings**
+- [x] **Step 6: Request final review and address only actionable findings**
 
 Review against the Phase 6 spec, classifying findings as Critical, Important, or Minor. Fix Critical and Important issues, rerun only the affected focused test, then rerun the final gate once if source code changed.
