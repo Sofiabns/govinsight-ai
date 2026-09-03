@@ -337,6 +337,10 @@ tables, observations and SQL evidence. Its database boundary accepts a single re
 against approved Gold analytical views, limits results and applies a five-second timeout. The query
 generator is replaceable through a small protocol without coupling the safety gate to an LLM vendor.
 
+`POST /agent/report` runs the full six-agent flow. Statistical, business, data-quality and critic
+stages inspect the same evidence before the executive stage is allowed to return a report; no stage
+may rewrite computed numbers.
+
 ## Project structure
 
 ```text
