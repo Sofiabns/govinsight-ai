@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Inteligência sobre compras públicas brasileiras." />
+    <title>GovInsight AI — Compras públicas em perspectiva</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="/dashboard/" aria-label="GovInsight AI">
+          <span class="brand-mark">GI</span>
+          <span><strong>GovInsight</strong><small>INTELIGÊNCIA PÚBLICA</small></span>
+        </a>
+        <div class="status"><span id="status-dot"></span><span id="status-text">Conectando aos dados</span></div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div>
+            <p class="eyebrow">PANORAMA PNCP</p>
+            <h1>Compras públicas,<br /><em>em perspectiva.</em></h1>
+            <p class="lede">Indicadores verificáveis para transformar dados governamentais em decisões mais claras.</p>
+          </div>
+          <div class="hero-meta">
+            <span>BASE OFICIAL</span><strong>Portal Nacional de Contratações Públicas</strong>
+            <span>ATUALIZAÇÃO</span><strong id="updated-at">—</strong>
+          </div>
+        </section>
+
+        <form id="filters" class="filters" aria-label="Filtros do painel">
+          <label>Data inicial<input id="start-date" type="date" name="start_date" /></label>
+          <label>Data final<input id="end-date" type="date" name="end_date" /></label>
+          <label>UF<input id="uf" name="uf" maxlength="2" placeholder="Todas" aria-label="Estado" /></label>
+          <label>Indicador<select id="measure" name="measure"><option value="homologated">Valor homologado</option><option value="estimated">Valor estimado</option></select></label>
+          <button type="submit">Atualizar painel <span aria-hidden="true">↗</span></button>
+        </form>
+
+        <div id="alert" class="alert" role="alert" hidden></div>
+
+        <section class="kpis" aria-label="Indicadores principais">
+          <article class="kpi featured"><span>PROCESSOS ANALISADOS</span><strong id="procurement-count">—</strong><small id="coverage-note">Carregando base</small></article>
+          <article class="kpi"><span>VALOR HOMOLOGADO</span><strong id="homologated-total">—</strong><small id="homologated-average">Média —</small></article>
+          <article class="kpi"><span>VALOR ESTIMADO</span><strong id="estimated-total">—</strong><small id="estimated-average">Média —</small></article>
+          <article class="kpi"><span>REGISTROS ATÍPICOS</span><strong id="outlier-count">—</strong><small>Critério estatístico IQR</small></article>
+        </section>
+
+        <section class="grid">
+          <article class="panel trend-panel">
+            <div class="panel-head"><div><span class="eyebrow">EVOLUÇÃO</span><h2>Volume financeiro mensal</h2></div><div class="legend"><i></i><span id="legend-label">Homologado</span></div></div>
+            <div id="trend-chart" class="chart" aria-label="Gráfico de evolução mensal"><div class="skeleton"></div></div>
+          </article>
+
+          <article class="panel ranking-panel">
+            <div class="panel-head"><div><span class="eyebrow">CONCENTRAÇÃO</span><h2>Principais órgãos</h2></div></div>
+            <div id="ranking" class="ranking"><div class="skeleton"></div></div>
+          </article>
+
+          <article class="panel outlier-panel">
+            <div class="panel-head"><div><span class="eyebrow">EVIDÊNCIAS</span><h2>Valores fora do padrão</h2></div><span class="method">Método: intervalo interquartil</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Identificador PNCP</th><th>Valor</th><th>Leitura</th></tr></thead><tbody id="outlier-table"><tr><td colspan="3">Carregando análise…</td></tr></tbody></table></div>
+          </article>
+        </section>
+      </main>
+
+      <footer><span>GovInsight AI</span><p>Transparência começa com dados confiáveis.</p><a href="/docs">Documentação da API ↗</a></footer>
+    </div>
+  </body>
+</html>
