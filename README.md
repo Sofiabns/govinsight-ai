@@ -321,6 +321,18 @@ analytics summary with one command:
 The command stops immediately if any stage fails or if the quality gate rejects the snapshot. It
 prints one JSON result containing the evidence produced by every completed stage.
 
+If the PNCP query API is temporarily unavailable, an official Compras.gov CSV export can be loaded
+through the same Bronze, Silver, quality and Gold controls:
+
+```powershell
+.\.venv\Scripts\python.exe -m govinsight.importers.pncp_csv data/pncp_sample.csv --limit 5000
+```
+
+The local portfolio dataset loaded on 2026-09-03 contains 4,507 valid official procurements across
+19 publication months. The import passed the quality gate and produced the same lineage and
+warehouse evidence as the API path. The source CSV remains outside Git because it is a generated
+340 MB government export.
+
 ## Analytics API
 
 With the API running, the interactive documentation at `http://localhost:8000/docs` exposes:
