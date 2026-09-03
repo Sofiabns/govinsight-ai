@@ -4,6 +4,10 @@ GovInsight AI is an evidence-backed data platform for Brazilian public procureme
 ingest official PNCP data, validate and model it for analytics, and expose verified insights
 through APIs, dashboards, and guarded AI agents.
 
+It addresses a practical problem: official procurement data is abundant, but extracting a reliable
+answer usually requires source integration, data-quality controls and analytical modeling. This
+repository packages that path into one reproducible product rather than a collection of notebooks.
+
 ## Current status
 
 **Phase 10 — Dashboard** delivers a responsive portfolio interface over the verified analytics API,
@@ -70,6 +74,9 @@ Quality gates:
 .\.venv\Scripts\python.exe -m ruff format --check .
 .\.venv\Scripts\python.exe -m pytest -m "not integration" -v --cov=govinsight
 ```
+
+Detailed references: [architecture](docs/architecture.md), [data dictionary](docs/data_dictionary.md),
+[agent system](docs/agents.md), and [PNCP source analysis](docs/data_source_analysis.md).
 
 The same lint, formatting, tests and production-image build run automatically in GitHub Actions
 for pull requests and pushes to `main`.
