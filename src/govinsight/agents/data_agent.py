@@ -178,10 +178,7 @@ class DataAgent:
 
 
 def _serialize_row(row: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        key: str(value) if isinstance(value, Decimal) else value
-        for key, value in row.items()
-    }
+    return {key: str(value) if isinstance(value, Decimal) else value for key, value in row.items()}
 
 
 __all__: Sequence[str] = (

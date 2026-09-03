@@ -37,9 +37,7 @@ def evaluate(cases: list[BenchmarkCase]) -> EvaluationResult:
             if case.expected_blocked:
                 failures += 1
                 continue
-            relation_matches = (
-                case.expected_relation is None or case.expected_relation in safe_sql
-            )
+            relation_matches = case.expected_relation is None or case.expected_relation in safe_sql
             if query.intent == case.expected_intent and relation_matches:
                 correct += 1
             grounded += 1

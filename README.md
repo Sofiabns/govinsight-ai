@@ -71,6 +71,9 @@ Quality gates:
 .\.venv\Scripts\python.exe -m pytest -m "not integration" -v --cov=govinsight
 ```
 
+The same lint, formatting, tests and production-image build run automatically in GitHub Actions
+for pull requests and pushes to `main`.
+
 Live PNCP contract test (requires internet access):
 
 ```powershell
