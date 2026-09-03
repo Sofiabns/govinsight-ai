@@ -312,6 +312,19 @@ analytics summary with one command:
 The command stops immediately if any stage fails or if the quality gate rejects the snapshot. It
 prints one JSON result containing the evidence produced by every completed stage.
 
+## Analytics API
+
+With the API running, the interactive documentation at `http://localhost:8000/docs` exposes:
+
+- `GET /analytics/summary`
+- `GET /analytics/rankings/{organization|state|modality}`
+- `GET /analytics/trends`
+- `GET /analytics/distribution`
+- `GET /analytics/outliers`
+
+The endpoints accept date, organization, UF and modality filters. Financial measure selections are
+restricted to `estimated` and `homologated`; ranking limits are capped at 100.
+
 ## Project structure
 
 ```text
