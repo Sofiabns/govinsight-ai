@@ -55,11 +55,15 @@ def detect_outlier_values(
 ) -> tuple[Decimal, ...]:
     if distribution.lower_fence is None or distribution.upper_fence is None:
         return ()
-    return tuple(
-        value
-        for value in values
-        if value < distribution.lower_fence or value > distribution.upper_fence
+    return tuple(value for value in values if is_outlier(value, distribution))
+
+
+def is_outlier(value: Decimal, distribution: DistributionSummary) -> bool:
+    return (
+        distribution.lower_fence is not None
+        and distribution.upper_fence is not None
+        and (value < distribution.lower_fence or value > distribution.upper_fence)
     )
 
 
-__all__ = ["describe", "detect_outlier_values"]
+__all__ = ["describe", "detect_outlier_values", "is_outlier"]

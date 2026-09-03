@@ -37,9 +37,9 @@ def test_analytics_migration_creates_reversible_metric_views(
 
     config = Config("alembic.ini")
     engine = create_engine(database_url, pool_pre_ping=True)
-    command.upgrade(config, "head")
 
     try:
+        command.upgrade(config, "head")
         inspector = inspect(engine)
         assert ANALYTICS_VIEWS <= set(inspector.get_view_names(schema="gold"))
         base_columns = {
