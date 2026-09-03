@@ -13,8 +13,8 @@ Testes específicos da fase: 9/9
 Testes aprovados no gate final: 136/136
 Teste PNCP ao vivo: 1 não executado por estar fora do escopo
 Cobertura final: 92,81%
-Problemas encontrados: 9
-Correções realizadas: 9
+Problemas encontrados: 10
+Correções realizadas: 10
 Próxima etapa: Fase 8 — Orchestration
 --------------------------------
 
@@ -64,6 +64,8 @@ tipada para resumo, rankings, tendência mensal, distribuição e outliers. Os c
 - A revisão identificou fallback silencioso de enums, agrupamento duplicável por nome de UF,
   chaves substitutas instáveis, ausência do padrão homologado, logs incompletos e lacunas de teste;
   os contratos, consultas, observabilidade e cenários foram corrigidos antes da integração.
+- A segunda revisão encontrou um nome de UF ausente competindo lexicalmente com o nome válido; o
+  agregado agora prefere nomes reais e usa o rótulo desconhecido somente quando necessário.
 
 ## Limites preservados
 
