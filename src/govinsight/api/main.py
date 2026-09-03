@@ -10,7 +10,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from govinsight.agents import DataAgent, ReadOnlySQLExecutor, RuleBasedSQLGenerator
+from govinsight.agents import (
+    DataAgent,
+    MultiAgentCoordinator,
+    ReadOnlySQLExecutor,
+    RuleBasedSQLGenerator,
+)
 from govinsight.analytics import (
     AnalyticsFilters,
     AnalyticsService,
@@ -40,6 +45,10 @@ class AgentReader(Protocol):
     def ask(self, question: str): ...
 
 
+class ReportAgent(Protocol):
+    def run(self, question: str): ...
+
+
 class AgentQuestion(BaseModel):
     question: Annotated[str, Field(min_length=3, max_length=500)]
 
@@ -48,6 +57,7 @@ def create_app(
     database_check: DatabaseCheck | None = None,
     analytics_service: AnalyticsReader | None = None,
     data_agent: AgentReader | None = None,
+    report_agent: ReportAgent | None = None,
 ) -> FastAPI:
     settings = get_settings()
     configure_logging(settings.log_level)
@@ -59,16 +69,19 @@ def create_app(
             app.state.database_check = database_check
             app.state.analytics = analytics_service
             app.state.data_agent = data_agent
+            app.state.report_agent = report_agent
             yield
             return
 
         engine = create_database_engine(settings)
         app.state.database_check = lambda: check_database(engine)
         app.state.analytics = AnalyticsService(engine)
-        app.state.data_agent = DataAgent(
+        production_data_agent = DataAgent(
             RuleBasedSQLGenerator(),
             ReadOnlySQLExecutor(engine),
         )
+        app.state.data_agent = production_data_agent
+        app.state.report_agent = MultiAgentCoordinator(production_data_agent)
         logger.info("database_engine_created", app_env=settings.app_env)
         try:
             yield
@@ -164,6 +177,15 @@ def create_app(
             raise HTTPException(status_code=503, detail="data agent unavailable")
         try:
             return request.app.state.data_agent.ask(payload.question)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @application.post("/agent/report")
+    def agent_report(request: Request, payload: AgentQuestion):
+        if request.app.state.report_agent is None:
+            raise HTTPException(status_code=503, detail="report agent unavailable")
+        try:
+            return request.app.state.report_agent.run(payload.question)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
