@@ -7,9 +7,10 @@ from typing import Annotated, Protocol
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from govinsight.agents import DataAgent, ReadOnlySQLExecutor, RuleBasedSQLGenerator
 from govinsight.analytics import (
     AnalyticsFilters,
     AnalyticsService,
@@ -35,9 +36,18 @@ class AnalyticsReader(Protocol):
     def outliers(self, measure: Measure, filters: AnalyticsFilters): ...
 
 
+class AgentReader(Protocol):
+    def ask(self, question: str): ...
+
+
+class AgentQuestion(BaseModel):
+    question: Annotated[str, Field(min_length=3, max_length=500)]
+
+
 def create_app(
     database_check: DatabaseCheck | None = None,
     analytics_service: AnalyticsReader | None = None,
+    data_agent: AgentReader | None = None,
 ) -> FastAPI:
     settings = get_settings()
     configure_logging(settings.log_level)
@@ -48,12 +58,17 @@ def create_app(
         if database_check is not None:
             app.state.database_check = database_check
             app.state.analytics = analytics_service
+            app.state.data_agent = data_agent
             yield
             return
 
         engine = create_database_engine(settings)
         app.state.database_check = lambda: check_database(engine)
         app.state.analytics = AnalyticsService(engine)
+        app.state.data_agent = DataAgent(
+            RuleBasedSQLGenerator(),
+            ReadOnlySQLExecutor(engine),
+        )
         logger.info("database_engine_created", app_env=settings.app_env)
         try:
             yield
@@ -142,6 +157,15 @@ def create_app(
         measure: Measure = Measure.HOMOLOGATED,
     ):
         return request.app.state.analytics.outliers(measure, filters)
+
+    @application.post("/agent/query")
+    def agent_query(request: Request, payload: AgentQuestion):
+        if request.app.state.data_agent is None:
+            raise HTTPException(status_code=503, detail="data agent unavailable")
+        try:
+            return request.app.state.data_agent.ask(payload.question)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     dashboard_directory = Path(__file__).with_name("dashboard")
     application.mount(

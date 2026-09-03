@@ -324,6 +324,19 @@ With the API running, the interactive documentation at `http://localhost:8000/do
 The endpoints accept date, organization, UF and modality filters. Financial measure selections are
 restricted to `estimated` and `homologated`; ranking limits are capped at 100.
 
+## Data Analyst Agent
+
+Ask a concise question through `POST /agent/query`:
+
+```json
+{"question": "Quais órgãos têm os maiores valores homologados?"}
+```
+
+The first agent uses an auditable natural-language baseline and returns only structured metrics,
+tables, observations and SQL evidence. Its database boundary accepts a single read-only `SELECT`
+against approved Gold analytical views, limits results and applies a five-second timeout. The query
+generator is replaceable through a small protocol without coupling the safety gate to an LLM vendor.
+
 ## Project structure
 
 ```text
@@ -338,6 +351,7 @@ src/govinsight/transform/ Silver typing, quality rules, repositories, and servic
 src/govinsight/quality/   SQL rules, weighted scoring, evidence, and quality gate
 src/govinsight/warehouse/ Gold dimensions, procurement fact, reconciliation, and load service
 src/govinsight/analytics/ Typed KPIs, rankings, trends, distributions, and statistical outliers
+src/govinsight/agents/    Evidence-backed agents and safe analytical SQL boundary
 src/govinsight/observability/ Structured logging
 tests/unit/               Fast deterministic tests
 tests/integration/        Real service contracts
@@ -350,5 +364,6 @@ tests/integration/        Real service contracts
 - Gold currently models procurement only; suppliers, contracts, items, categories and region
   enrichment are intentionally deferred until trusted sources exist.
 - Silver and Gold are current-state models; historical SCD Type 2 analysis does not exist yet.
-- AI agents are not implemented yet.
+- The natural-language baseline currently recognizes summary, trend and ranking intents; richer
+  language-model interpretation is optional and remains behind the generator interface.
 - The Compose defaults are intended only for local development.
