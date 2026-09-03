@@ -129,7 +129,7 @@ def analytics_sample(engine: Engine) -> dict[str, object]:
                         "codigo_unidade": f"SP-{token}",
                         "nome_unidade": "Unidade SP",
                         "uf_sigla": "ZZ",
-                        "uf_nome": "São Paulo",
+                        "uf_nome": "Acre",
                         "created_at": now,
                         "updated_at": now,
                     },
@@ -138,7 +138,7 @@ def analytics_sample(engine: Engine) -> dict[str, object]:
                         "codigo_unidade": f"SP2-{token}",
                         "nome_unidade": "Unidade SP 2",
                         "uf_sigla": "ZZ",
-                        "uf_nome": "Zeta Estado",
+                        "uf_nome": None,
                         "created_at": now,
                         "updated_at": now,
                     },
@@ -325,6 +325,7 @@ def test_service_reconciles_kpis_rankings_trends_and_outliers(
     )
     assert states[0].key == "UNKNOWN"
     assert states[0].total == Decimal("1000.0000")
+    assert next(row.label for row in states if row.key == "ZZ") == "Acre"
     modalities = service.rank(
         RankDimension.MODALITY,
         measure=Measure.HOMOLOGATED,
@@ -384,7 +385,7 @@ def test_service_reconciles_kpis_rankings_trends_and_outliers(
                 "FROM gold.analytics_by_state WHERE uf_sigla = 'ZZ'"
             )
         ).all()
-        assert state_view == [("Zeta Estado", 5, Decimal("130.0000"))]
+        assert state_view == [("Acre", 5, Decimal("130.0000"))]
         modality_view = connection.execute(
             sa.text(
                 "SELECT procurement_count, homologated_total "

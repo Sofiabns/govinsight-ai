@@ -83,7 +83,11 @@ def upgrade() -> None:
         CREATE VIEW gold.analytics_by_state AS
         SELECT
             COALESCE(uf_sigla, 'UNKNOWN') AS uf_sigla,
-            MAX(COALESCE(uf_nome, 'Localidade não informada')) AS uf_nome,
+            CASE
+                WHEN COALESCE(uf_sigla, 'UNKNOWN') = 'UNKNOWN'
+                THEN 'Localidade não informada'
+                ELSE COALESCE(MAX(uf_nome), 'Localidade não informada')
+            END AS uf_nome,
             COUNT(*)::bigint AS procurement_count,
             SUM(valor_total_estimado) AS estimated_total,
             AVG(valor_total_estimado) AS estimated_average,

@@ -80,8 +80,11 @@ class AnalyticsRepository:
             group_columns = [analytics_base.c.orgao_cnpj, analytics_base.c.orgao_razao_social]
         elif dimension is RankDimension.STATE:
             key = sa.func.coalesce(analytics_base.c.uf_sigla, "UNKNOWN").label("key")
-            label = sa.func.max(
-                sa.func.coalesce(analytics_base.c.uf_nome, "Localidade não informada")
+            label = sa.case(
+                (key == "UNKNOWN", "Localidade não informada"),
+                else_=sa.func.coalesce(
+                    sa.func.max(analytics_base.c.uf_nome), "Localidade não informada"
+                ),
             ).label("label")
             sort_key = key.label("sort_key")
             group_columns = [key]
