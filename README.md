@@ -341,6 +341,15 @@ generator is replaceable through a small protocol without coupling the safety ga
 stages inspect the same evidence before the executive stage is allowed to return a report; no stage
 may rewrite computed numbers.
 
+Run the versioned agent benchmark:
+
+```powershell
+.\.venv\Scripts\python.exe -m govinsight.agents.evaluation tests/fixtures/agents/agent_evaluation.json
+```
+
+It reports intent accuracy, grounded-answer rate and unexpected failure rate, including an
+adversarial prompt-injection case.
+
 ## Project structure
 
 ```text

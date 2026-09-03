@@ -88,6 +88,11 @@ class RuleBasedSQLGenerator:
 
     def generate(self, question: str) -> GeneratedQuery:
         normalized = question.casefold()
+        if any(
+            term in normalized
+            for term in ("ignore as instruções", "ignore instrucoes", "drop ", "delete ", "update ")
+        ):
+            raise ValueError("unsafe instruction in question")
         if any(word in normalized for word in ("mensal", "mês", "evolução", "tendência")):
             return GeneratedQuery(
                 intent="monthly_trend",
