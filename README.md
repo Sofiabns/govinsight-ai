@@ -10,8 +10,8 @@ repository packages that path into one reproducible product rather than a collec
 
 ## Current status
 
-**Phase 10 — Dashboard** delivers a responsive portfolio interface over the verified analytics API,
-with procurement KPIs, monthly trends, organization rankings, statistical outliers and filters.
+**Complete release** delivers an idempotent PNCP data pipeline, quality-gated warehouse, analytics
+API, responsive dashboard and a six-agent evidence-verification flow.
 
 ## Architecture foundation
 

@@ -61,7 +61,12 @@ class BusinessInsightAgent:
 
 class DataQualityAgent:
     def review(self, data: AgentAnswer) -> QualityReview:
-        issues = [] if data.tables else ["Não existem registros no recorte solicitado."]
+        has_no_procurements = data.metrics.get("procurement_count") == 0
+        issues = (
+            []
+            if data.tables and not has_no_procurements
+            else ["Não existem registros no recorte solicitado."]
+        )
         return QualityReview(approved=not issues, issues=issues)
 
 

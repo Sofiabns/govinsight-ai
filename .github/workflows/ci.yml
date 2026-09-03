@@ -13,6 +13,22 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: govinsight
+          POSTGRES_USER: govinsight_app
+          POSTGRES_PASSWORD: govinsight_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U govinsight_app -d govinsight"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      GOVINSIGHT_DATABASE_URL: postgresql+psycopg://govinsight_app:govinsight_ci@127.0.0.1:5432/govinsight
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,8 +41,8 @@ jobs:
         run: python -m ruff check .
       - name: Format
         run: python -m ruff format --check .
-      - name: Unit tests
-        run: python -m pytest -m "not integration and not live_api" --cov=govinsight
+      - name: Tests
+        run: python -m pytest -m "not live_api" --cov=govinsight
 
   container:
     runs-on: ubuntu-latest
