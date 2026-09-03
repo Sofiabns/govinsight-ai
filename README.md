@@ -300,6 +300,18 @@ descriptive evidence of unusual magnitude, not claims of fraud or irregularity. 
 homologated metrics remain explicitly separate; the analytics layer does not expose contracted
 value, suppliers, categories or regions because those trusted Gold entities do not exist yet.
 
+## End-to-end pipeline
+
+Run extraction, RAW persistence, Silver transformation, quality validation, Gold loading and the
+analytics summary with one command:
+
+```powershell
+.\.venv\Scripts\python.exe -m govinsight.orchestration --start 2025-08-01 --end 2025-08-01 --modality 6
+```
+
+The command stops immediately if any stage fails or if the quality gate rejects the snapshot. It
+prints one JSON result containing the evidence produced by every completed stage.
+
 ## Project structure
 
 ```text
