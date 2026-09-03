@@ -9,12 +9,12 @@ Data: 2026-08-30
 Branch: feat/phase-7-analytics
 Views analíticas: 6
 Operações públicas do serviço: 5
-Testes específicos da fase: 8/8
-Testes aprovados no gate final: 135/135
+Testes específicos da fase: 9/9
+Testes aprovados no gate final: 136/136
 Teste PNCP ao vivo: 1 não executado por estar fora do escopo
-Cobertura final: 92,25%
-Problemas encontrados: 3
-Correções realizadas: 3
+Cobertura final: 92,81%
+Problemas encontrados: 9
+Correções realizadas: 9
 Próxima etapa: Fase 8 — Orchestration
 --------------------------------
 
@@ -31,11 +31,11 @@ tipada para resumo, rankings, tendência mensal, distribuição e outliers. Os c
 
 | Gate | Resultado |
 |---|---|
-| Testes específicos da Fase 7 | PASS — 8/8 |
-| Suíte local + PostgreSQL | PASS — 135/135; 1 teste externo não executado |
-| Cobertura combinada | PASS — 92,25%, mínimo 80% |
+| Testes específicos da Fase 7 | PASS — 9/9 |
+| Suíte local + PostgreSQL | PASS — 136/136; 1 teste externo não executado |
+| Cobertura combinada | PASS — 92,81%, mínimo 80% |
 | `ruff check .` | PASS — zero erros |
-| `ruff format --check .` | PASS — 100 arquivos formatados |
+| `ruff format --check .` | PASS — 101 arquivos formatados |
 | Migração atual | PASS — `20260830_0006 (head)` |
 | Cabeça do Alembic | PASS — `20260830_0006 (head)` |
 | `git diff --check` | PASS — sem erros de whitespace |
@@ -61,6 +61,9 @@ tipada para resumo, rankings, tendência mensal, distribuição e outliers. Os c
   passou a validar exatamente a precisão real do banco.
 - O gate de formatação encontrou quatro arquivos novos fora do padrão; o formatador oficial foi
   aplicado antes da suíte final.
+- A revisão identificou fallback silencioso de enums, agrupamento duplicável por nome de UF,
+  chaves substitutas instáveis, ausência do padrão homologado, logs incompletos e lacunas de teste;
+  os contratos, consultas, observabilidade e cenários foram corrigidos antes da integração.
 
 ## Limites preservados
 
@@ -68,3 +71,5 @@ tipada para resumo, rankings, tendência mensal, distribuição e outliers. Os c
 - Fornecedores, categorias e regiões aguardam fontes Silver/Gold confiáveis.
 - Outlier IQR é uma observação estatística e não indica fraude ou irregularidade.
 - Views materializadas permanecem adiadas até existir evidência de necessidade de performance.
+- Distribuição e IQR carregam os valores filtrados em memória; a migração para percentis no banco
+  será avaliada quando medições reais indicarem pressão de volume.

@@ -83,7 +83,7 @@ def upgrade() -> None:
         CREATE VIEW gold.analytics_by_state AS
         SELECT
             COALESCE(uf_sigla, 'UNKNOWN') AS uf_sigla,
-            COALESCE(uf_nome, 'Localidade não informada') AS uf_nome,
+            MAX(COALESCE(uf_nome, 'Localidade não informada')) AS uf_nome,
             COUNT(*)::bigint AS procurement_count,
             SUM(valor_total_estimado) AS estimated_total,
             AVG(valor_total_estimado) AS estimated_average,
@@ -94,7 +94,7 @@ def upgrade() -> None:
             SUM(valor_total_homologado)
                 / NULLIF(SUM(SUM(valor_total_homologado)) OVER (), 0) AS homologated_share
         FROM gold.analytics_procurement_base
-        GROUP BY COALESCE(uf_sigla, 'UNKNOWN'), COALESCE(uf_nome, 'Localidade não informada')
+        GROUP BY COALESCE(uf_sigla, 'UNKNOWN')
         """
     )
     op.execute(

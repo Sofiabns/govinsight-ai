@@ -74,25 +74,29 @@ class AnalyticsRepository:
         limit: int,
     ) -> list[sa.Row]:
         if dimension is RankDimension.ORGANIZATION:
-            key = sa.cast(analytics_base.c.organization_key, sa.Text()).label("key")
+            key = analytics_base.c.orgao_cnpj.label("key")
             label = analytics_base.c.orgao_razao_social.label("label")
-            group_columns = [analytics_base.c.organization_key, analytics_base.c.orgao_razao_social]
+            sort_key = analytics_base.c.orgao_cnpj.label("sort_key")
+            group_columns = [analytics_base.c.orgao_cnpj, analytics_base.c.orgao_razao_social]
         elif dimension is RankDimension.STATE:
             key = sa.func.coalesce(analytics_base.c.uf_sigla, "UNKNOWN").label("key")
-            label = sa.func.coalesce(analytics_base.c.uf_nome, "Localidade não informada").label(
-                "label"
-            )
-            group_columns = [key, label]
+            label = sa.func.max(
+                sa.func.coalesce(analytics_base.c.uf_nome, "Localidade não informada")
+            ).label("label")
+            sort_key = key.label("sort_key")
+            group_columns = [key]
         else:
-            key = sa.cast(analytics_base.c.modality_key, sa.Text()).label("key")
+            key = sa.cast(analytics_base.c.modalidade_id, sa.Text()).label("key")
             label = analytics_base.c.modalidade_nome.label("label")
-            group_columns = [analytics_base.c.modality_key, analytics_base.c.modalidade_nome]
+            sort_key = analytics_base.c.modalidade_id.label("sort_key")
+            group_columns = [analytics_base.c.modalidade_id, analytics_base.c.modalidade_nome]
 
         value = _measure_column(measure)
         grouped = _apply_filters(
             sa.select(
                 key,
                 label,
+                sort_key,
                 sa.func.count().label("procurement_count"),
                 sa.func.sum(value).label("total"),
                 sa.func.avg(value).label("average"),
@@ -107,7 +111,7 @@ class AnalyticsRepository:
                     "share"
                 ),
             )
-            .order_by(result.c.total.desc().nulls_last(), result.c.key.asc())
+            .order_by(result.c.total.desc().nulls_last(), result.c.sort_key.asc())
             .limit(limit)
         )
         return list(connection.execute(statement).all())
