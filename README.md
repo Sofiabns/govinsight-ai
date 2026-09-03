@@ -6,10 +6,8 @@ through APIs, dashboards, and guarded AI agents.
 
 ## Current status
 
-**Phase 7 — Analytics** adds a canonical PostgreSQL metric layer and a typed Python query service
-over the quality-approved Gold star. It exposes exact procurement KPIs, rankings, monthly trends,
-distributions and statistical outliers without inventing unavailable supplier, category, region or
-contract metrics.
+**Phase 10 — Dashboard** delivers a responsive portfolio interface over the verified analytics API,
+with procurement KPIs, monthly trends, organization rankings, statistical outliers and filters.
 
 ## Architecture foundation
 
@@ -48,6 +46,7 @@ Expected health response:
 ```
 
 The API documentation is available at `http://localhost:8000/docs` while the stack is running.
+The dashboard is available at `http://localhost:8000/`.
 
 Stop the services without deleting the database volume:
 
@@ -331,6 +330,7 @@ restricted to `estimated` and `homologated`; ranking limits are capped at 100.
 alembic/                  Versioned PostgreSQL migrations
 docs/                     Discovery, plans, and phase checkpoints
 src/govinsight/api/       FastAPI application
+src/govinsight/api/dashboard/ Responsive analytics dashboard
 src/govinsight/database/  SQLAlchemy connectivity boundary
 src/govinsight/extract/   PNCP query, retry, client, and pagination boundaries
 src/govinsight/raw/       Bronze identities, repositories, and ingestion service
@@ -350,5 +350,5 @@ tests/integration/        Real service contracts
 - Gold currently models procurement only; suppliers, contracts, items, categories and region
   enrichment are intentionally deferred until trusted sources exist.
 - Silver and Gold are current-state models; historical SCD Type 2 analysis does not exist yet.
-- No dashboard or AI agents exist yet.
+- AI agents are not implemented yet.
 - The Compose defaults are intended only for local development.

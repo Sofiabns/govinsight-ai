@@ -1,9 +1,12 @@
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import date
+from pathlib import Path
 from typing import Annotated, Protocol
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -63,6 +66,10 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
+
+    @application.get("/", include_in_schema=False)
+    def dashboard_redirect() -> RedirectResponse:
+        return RedirectResponse(url="/dashboard/")
 
     def analytics_filters(
         start_date: date | None = None,
@@ -135,6 +142,13 @@ def create_app(
         measure: Measure = Measure.HOMOLOGATED,
     ):
         return request.app.state.analytics.outliers(measure, filters)
+
+    dashboard_directory = Path(__file__).with_name("dashboard")
+    application.mount(
+        "/dashboard",
+        StaticFiles(directory=dashboard_directory, html=True),
+        name="dashboard",
+    )
 
     return application
 
