@@ -24,6 +24,7 @@ from govinsight.observability.logging import get_logger
 TRANSIENT_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 CNPJ_PATTERN = re.compile(r"^\d{14}$")
 _NO_CONTENT = object()
+ACTIVE_MODALITIES_URL = "https://pncp.gov.br/api/pncp/v1/modalidades"
 
 
 def _utc_now() -> datetime:
@@ -91,6 +92,29 @@ class PNCPClient:
         if query.mode is QueryMode.UPDATE:
             endpoint += "/atualizacao"
         return self._fetch_page(endpoint, query.to_params(), query.page)
+
+    def list_active_modalities(self) -> list[int]:
+        result = self._request(ACTIVE_MODALITIES_URL, params={"statusAtivo": "true"})
+        if not isinstance(result.payload, list):
+            raise PNCPResponseError(
+                endpoint=ACTIVE_MODALITIES_URL,
+                reason="expected a list of active modalities",
+            )
+        codes = {
+            item["id"]
+            for item in result.payload
+            if isinstance(item, dict)
+            and isinstance(item.get("id"), int)
+            and not isinstance(item["id"], bool)
+            and item["id"] > 0
+            and item.get("statusAtivo") is True
+        }
+        if not codes:
+            raise PNCPResponseError(
+                endpoint=ACTIVE_MODALITIES_URL,
+                reason="active modality list is empty or invalid",
+            )
+        return sorted(codes)
 
     def _fetch_page(
         self, endpoint: str, params: dict[str, str | int], requested_page: int

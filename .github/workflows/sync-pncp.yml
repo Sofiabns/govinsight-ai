@@ -1,0 +1,53 @@
+name: Sync recent PNCP data
+
+on:
+  schedule:
+    - cron: "20 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: Days reopened to capture late PNCP updates
+        required: true
+        default: "7"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pncp-production-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GOVINSIGHT_APP_ENV: production
+      GOVINSIGHT_DATABASE_DSN: ${{ secrets.GOVINSIGHT_DATABASE_ADMIN_DSN }}
+      LOOKBACK_DAYS: ${{ inputs.lookback_days || '7' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Check protected database secret
+        shell: bash
+        run: test -n "$GOVINSIGHT_DATABASE_DSN"
+      - name: Install application
+        run: |
+          python -m pip install -r requirements.lock
+          python -m pip install --no-deps -e .
+      - name: Apply database schema
+        run: alembic upgrade head
+      - name: Synchronize official PNCP updates
+        shell: bash
+        run: python -m govinsight.orchestration.scheduled --lookback-days "$LOOKBACK_DAYS" | tee pncp-sync.log
+      - name: Publish non-sensitive execution log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pncp-sync-log-${{ github.run_id }}
+          path: pncp-sync.log
+          if-no-files-found: ignore
+          retention-days: 14
