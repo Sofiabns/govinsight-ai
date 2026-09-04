@@ -19,6 +19,7 @@ def test_multiagent_report_preserves_evidence_and_numbers() -> None:
     report = MultiAgentCoordinator(DataAgentStub()).run("Quantas compras existem?")
 
     assert report.key_numbers == {"procurement_count": 12}
+    assert report.data_points == [{"procurement_count": 12}]
     assert report.verification.approved is True
     assert report.evidence[0].source == "gold.analytics_summary"
 

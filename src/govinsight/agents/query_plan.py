@@ -226,24 +226,42 @@ class QueryPlanner(Protocol):
 class RuleBasedQueryPlanner:
     """Fast, auditable baseline for the public demo and provider fallback."""
 
+    _brazilian_ufs: ClassVar[set[str]] = {
+        "ac", "al", "ap", "am", "ba", "ce", "df", "es", "go", "ma", "mt",
+        "ms", "mg", "pa", "pb", "pr", "pe", "pi", "rj", "rn", "rs", "ro",
+        "rr", "sc", "sp", "se", "to",
+    }
+
     def plan(self, question: str) -> QueryPlan:
         normalized = question.casefold()
         validate_question_scope(question)
         dates = re.findall(r"\b\d{4}-\d{2}-\d{2}\b", normalized)
-        uf_match = re.search(r"\buf\s+([a-z]{2})\b", normalized)
+        uf_match = re.search(
+            r"(?:\buf\s+|\b(?:em|no|na|de|do|da)\s+(?:uf\s+)?)([a-z]{2})\b",
+            normalized,
+        )
+        uf = uf_match.group(1) if uf_match and uf_match.group(1) in self._brazilian_ufs else None
         measure = Measure.ESTIMATED if "estimad" in normalized else Measure.HOMOLOGATED
         filters = {
             "measure": measure,
             "start_date": dates[0] if dates else None,
             "end_date": dates[1] if len(dates) > 1 else None,
-            "uf": uf_match.group(1) if uf_match else None,
+            "uf": uf,
         }
-        if any(word in normalized for word in ("atíp", "atip", "outlier", "fora do padrão")):
+        outlier_terms = (
+            "atíp", "atip", "outlier", "fora do padrão", "maior valor",
+            "maior compra", "maiores compras", "valores extremos",
+        )
+        if any(word in normalized for word in outlier_terms):
             return QueryPlan(intent=QueryIntent.OUTLIERS, **filters)
         distribution_terms = ("distribuição", "distribuicao", "mediana", "quartil")
         if any(word in normalized for word in distribution_terms):
             return QueryPlan(intent=QueryIntent.DISTRIBUTION, **filters)
-        if any(word in normalized for word in ("mensal", "mês", "evolução", "tendência")):
+        trend_terms = (
+            "mensal", "mês", "evolução", "tendência", "ao longo do tempo",
+            "mudaram", "variação", "variacao", "histórico", "historico",
+        )
+        if any(word in normalized for word in trend_terms):
             return QueryPlan(intent=QueryIntent.MONTHLY_TREND, **filters)
         dimensions = {
             "estado": RankDimension.STATE,
@@ -252,6 +270,9 @@ class RuleBasedQueryPlanner:
             "modalidade": RankDimension.MODALITY,
             "órgão": RankDimension.ORGANIZATION,
             "orgao": RankDimension.ORGANIZATION,
+            "quem mais compra": RankDimension.ORGANIZATION,
+            "quem compra mais": RankDimension.ORGANIZATION,
+            "compradores": RankDimension.ORGANIZATION,
         }
         for keyword, dimension in dimensions.items():
             if keyword in normalized:
