@@ -83,4 +83,92 @@ async function loadDashboard() {
 }
 
 $("filters").addEventListener("submit", (event) => { event.preventDefault(); loadDashboard(); });
+
+const make = (tag, className, text) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = String(text);
+  return node;
+};
+
+function renderAgentReport(report) {
+  const target = $("agent-result");
+  target.replaceChildren();
+  target.append(make("h3", "", "Relatório executivo"), make("p", "", report.summary));
+
+  const metrics = make("div", "report-metrics");
+  Object.entries(report.key_numbers || {}).forEach(([label, value]) => {
+    const tile = make("div", "report-metric");
+    tile.append(make("span", "", label.replaceAll("_", " ")), make("strong", "", value ?? "—"));
+    metrics.append(tile);
+  });
+  if (metrics.childElementCount) target.append(metrics);
+
+  const notes = [...(report.trends || []), ...(report.opportunities || [])];
+  if (notes.length) {
+    const list = make("ul", "report-notes");
+    notes.forEach((item) => list.append(make("li", "", item)));
+    target.append(list);
+  }
+  if ((report.attention_points || []).length) {
+    const attention = make("ul", "report-notes attention");
+    report.attention_points.forEach((item) => attention.append(make("li", "", item)));
+    target.append(attention);
+  }
+
+  const evidence = $("agent-evidence");
+  const evidenceContent = $("evidence-content");
+  evidenceContent.replaceChildren();
+  (report.evidence || []).forEach((item) => {
+    evidenceContent.append(
+      make("p", "", `Fonte: ${item.source} · ${item.row_count} linha(s)`),
+      make("pre", "", item.sql),
+    );
+  });
+  evidence.hidden = !(report.evidence || []).length;
+}
+
+async function askAgent(question) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  const submit = $("agent-submit");
+  submit.disabled = true;
+  $("agent-loading").hidden = false;
+  $("agent-result").replaceChildren();
+  $("agent-evidence").hidden = true;
+  try {
+    const response = await fetch("/agent/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const problem = await response.json().catch(() => ({}));
+      throw new Error(problem.detail || `A API respondeu com status ${response.status}`);
+    }
+    renderAgentReport(await response.json());
+  } catch (error) {
+    const message = error.name === "AbortError"
+      ? "A análise levou mais de 15 segundos. Tente uma pergunta mais direta."
+      : `Não foi possível concluir a análise. ${error.message}`;
+    $("agent-result").append(make("p", "agent-placeholder", message));
+  } finally {
+    clearTimeout(timer);
+    submit.disabled = false;
+    $("agent-loading").hidden = true;
+  }
+}
+
+$("agent-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const question = $("agent-question").value.trim();
+  if (question) askAgent(question);
+});
+document.querySelectorAll(".prompt-chip").forEach((button) => {
+  button.addEventListener("click", () => {
+    $("agent-question").value = button.textContent.trim();
+    askAgent($("agent-question").value);
+  });
+});
 loadDashboard();

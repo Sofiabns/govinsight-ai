@@ -48,6 +48,38 @@
           <article class="kpi"><span>REGISTROS ATÍPICOS</span><strong id="outlier-count">—</strong><small>Critério estatístico IQR</small></article>
         </section>
 
+        <section class="agent-studio" aria-labelledby="agent-title">
+          <div class="agent-intro">
+            <p class="eyebrow">ANÁLISE ASSISTIDA</p>
+            <h2 id="agent-title">Pergunte aos dados</h2>
+            <p>Explore a amostra federal do PNCP em linguagem natural. Cada resposta mostra a evidência utilizada.</p>
+            <div class="prompt-list" aria-label="Perguntas sugeridas">
+              <button class="prompt-chip" type="button">Quantas compras foram analisadas?</button>
+              <button class="prompt-chip" type="button">Quais órgãos possuem os maiores valores?</button>
+              <button class="prompt-chip" type="button">Mostre a evolução mensal dos valores.</button>
+              <button class="prompt-chip" type="button">Quais são os valores fora do padrão?</button>
+            </div>
+          </div>
+          <div class="agent-workspace">
+            <form id="agent-form">
+              <label for="agent-question">Sua pergunta</label>
+              <div class="question-row">
+                <input id="agent-question" name="question" minlength="3" maxlength="500" required placeholder="Ex.: quais modalidades concentram mais valor?" />
+                <button id="agent-submit" type="submit">Analisar <span aria-hidden="true">↗</span></button>
+              </div>
+              <p class="scope-note">Escopo: resumo, rankings, evolução, distribuição e atípicos estatísticos.</p>
+            </form>
+            <div id="agent-loading" class="agent-loading" hidden aria-hidden="true"><span></span><span></span><span></span></div>
+            <div id="agent-result" class="agent-result" role="status" aria-live="polite">
+              <p class="agent-placeholder">Escolha uma pergunta sugerida ou escreva a sua.</p>
+            </div>
+            <details id="agent-evidence" class="evidence" hidden>
+              <summary>Ver evidências da resposta</summary>
+              <div id="evidence-content"></div>
+            </details>
+          </div>
+        </section>
+
         <section class="grid">
           <article class="panel trend-panel">
             <div class="panel-head"><div><span class="eyebrow">EVOLUÇÃO</span><h2>Volume financeiro mensal</h2></div><div class="legend"><i></i><span id="legend-label">Homologado</span></div></div>

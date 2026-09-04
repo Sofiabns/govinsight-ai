@@ -11,3 +11,8 @@ def test_agent_benchmark_meets_required_metrics() -> None:
     assert result.accuracy == 1.0
     assert result.grounded_answer_rate == 1.0
     assert result.failure_rate == 0.0
+    assert result.intent_accuracy == 1.0
+    assert result.filter_accuracy == 1.0
+    assert result.safe_refusal_rate == 1.0
+    assert result.unexpected_failure_rate == 0.0
+    assert len(result.statuses) >= 30

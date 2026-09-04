@@ -34,6 +34,7 @@ def test_data_agent_returns_structured_evidence() -> None:
         "DELETE FROM gold.fact_procurement",
         "SELECT * FROM analytics_summary; DROP TABLE gold.fact_procurement",
         "SELECT * FROM silver.procurement",
+        "SELECT * FROM gold.analytics_summary LIMIT 201",
     ],
 )
 def test_sql_guard_rejects_unsafe_or_unapproved_queries(sql: str) -> None:

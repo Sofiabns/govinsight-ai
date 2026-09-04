@@ -1,2 +1,2 @@
+-r requirements.lock
 -e .[dev]
-

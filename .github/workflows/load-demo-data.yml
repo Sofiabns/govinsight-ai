@@ -1,0 +1,52 @@
+name: Load official demo data
+
+on:
+  workflow_dispatch:
+    inputs:
+      record_limit:
+        description: Maximum valid records to load
+        required: true
+        default: "5000"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-data-production
+  cancel-in-progress: false
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOVINSIGHT_DATABASE_DSN: ${{ secrets.GOVINSIGHT_DATABASE_ADMIN_DSN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Check protected database secret
+        shell: bash
+        run: test -n "$GOVINSIGHT_DATABASE_DSN"
+      - name: Install application
+        run: |
+          python -m pip install -r requirements.lock
+          python -m pip install --no-deps -e .
+      - name: Download bounded official export
+        shell: pwsh
+        run: ./scripts/download_demo_data.ps1
+      - name: Apply schema and load data
+        shell: bash
+        run: |
+          alembic upgrade head
+          python -m govinsight.importers.pncp_csv data/pncp_demo.csv --limit "${{ inputs.record_limit }}" | tee demo-load-summary.json
+      - name: Publish non-sensitive run summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-load-summary
+          path: |
+            demo-load-summary.json
+            data/pncp_demo.csv.metadata.json
+          retention-days: 14

@@ -53,6 +53,7 @@ class SafeSQLGuard:
             "analytics_by_state",
             "analytics_by_modality",
             "analytics_monthly",
+            "analytics_procurement_base",
         }
     )
     forbidden = re.compile(
@@ -78,54 +79,21 @@ class SafeSQLGuard:
         )
         if not safe:
             raise ValueError("agent must produce one safe analytical query")
-        if re.search(r"\blimit\s+\d+\s*$", normalized, re.I):
+        limit_match = re.search(r"\blimit\s+(\d+)\s*$", normalized, re.I)
+        if limit_match and int(limit_match.group(1)) > 200:
+            raise ValueError("agent must produce one safe analytical query with LIMIT <= 200")
+        if limit_match:
             return normalized
         return f"{normalized} LIMIT 200"
 
 
 class RuleBasedSQLGenerator:
-    """Auditable natural-language baseline; an LLM can replace this protocol later."""
+    """Auditable natural-language baseline compiled through the typed plan boundary."""
 
     def generate(self, question: str) -> GeneratedQuery:
-        normalized = question.casefold()
-        if any(
-            term in normalized
-            for term in ("ignore as instruções", "ignore instrucoes", "drop ", "delete ", "update ")
-        ):
-            raise ValueError("unsafe instruction in question")
-        if any(word in normalized for word in ("mensal", "mês", "evolução", "tendência")):
-            return GeneratedQuery(
-                intent="monthly_trend",
-                sql=(
-                    "SELECT month, procurement_count, estimated_total, homologated_total, "
-                    "estimated_growth_rate, homologated_growth_rate "
-                    "FROM gold.analytics_monthly ORDER BY month"
-                ),
-            )
-        dimensions = {
-            "estado": ("state", "analytics_by_state", "uf_nome"),
-            "uf": ("state", "analytics_by_state", "uf_nome"),
-            "modalidade": ("modality", "analytics_by_modality", "modalidade_nome"),
-            "órgão": ("organization", "analytics_by_organization", "orgao_razao_social"),
-            "orgao": ("organization", "analytics_by_organization", "orgao_razao_social"),
-        }
-        for keyword, (intent, relation, label_column) in dimensions.items():
-            if keyword in normalized:
-                return GeneratedQuery(
-                    intent=f"ranking_{intent}",
-                    sql=(
-                        f"SELECT {label_column} AS label, procurement_count, estimated_total, "
-                        f"homologated_total FROM gold.{relation} "
-                        "ORDER BY homologated_total DESC NULLS LAST LIMIT 10"
-                    ),
-                )
-        return GeneratedQuery(
-            intent="summary",
-            sql=(
-                "SELECT procurement_count, estimated_total, estimated_average, "
-                "homologated_total, homologated_average FROM gold.analytics_summary"
-            ),
-        )
+        from govinsight.agents.query_plan import QueryPlanSQLGenerator, RuleBasedQueryPlanner
+
+        return QueryPlanSQLGenerator(RuleBasedQueryPlanner()).generate(question)
 
 
 class ReadOnlySQLExecutor:

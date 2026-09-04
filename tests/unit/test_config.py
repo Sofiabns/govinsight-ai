@@ -33,6 +33,44 @@ def test_pncp_defaults_are_safe_for_the_official_api() -> None:
     assert settings.pncp_retry_max_delay_seconds == 8.0
 
 
+def test_openai_provider_requires_key_and_model() -> None:
+    with pytest.raises(ValidationError):
+        Settings(agent_provider="openai")
+
+    settings = Settings(
+        agent_provider="openai",
+        openai_api_key="sk-test-secret",
+        openai_model="gpt-test",
+    )
+    assert settings.agent_provider == "openai"
+    assert "sk-test-secret" not in repr(settings)
+
+
+def test_rules_provider_needs_no_external_key() -> None:
+    settings = Settings(agent_provider="rules")
+
+    assert settings.openai_api_key is None
+    assert settings.agent_fallback_enabled is True
+
+
+def test_complete_database_dsn_overrides_local_components_and_stays_secret() -> None:
+    dsn = "postgresql+psycopg://reader:secret@managed.example/db?sslmode=require"
+    settings = Settings(database_dsn=dsn)
+
+    assert settings.database_url == dsn
+    assert "secret" not in repr(settings)
+
+
+def test_production_requires_managed_ssl_database_dsn() -> None:
+    with pytest.raises(ValidationError):
+        Settings(app_env="production")
+    with pytest.raises(ValidationError):
+        Settings(
+            app_env="production",
+            database_dsn="postgresql+psycopg://reader:secret@managed.example/db",
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

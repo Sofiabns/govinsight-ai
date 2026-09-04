@@ -27,3 +27,9 @@ def test_official_csv_row_maps_to_valid_silver_record() -> None:
 
     assert result.procurement is not None
     assert result.procurement.uf_sigla == "DF"
+
+
+def test_truncated_row_without_publication_date_is_ignored() -> None:
+    row = {"numero_controle_PNCP": "37115342000167-1-000095/2025"}
+
+    assert to_pncp_record(row) is None

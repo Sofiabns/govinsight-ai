@@ -12,8 +12,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from govinsight.agents import (
     DataAgent,
+    FallbackQueryPlanner,
     MultiAgentCoordinator,
+    OpenAIQueryPlanner,
+    QueryPlanSQLGenerator,
     ReadOnlySQLExecutor,
+    RuleBasedQueryPlanner,
     RuleBasedSQLGenerator,
 )
 from govinsight.analytics import (
@@ -22,6 +26,7 @@ from govinsight.analytics import (
     Measure,
     RankDimension,
 )
+from govinsight.api.rate_limit import FixedWindowRateLimiter
 from govinsight.config import get_settings
 from govinsight.database.session import check_database, create_database_engine
 from govinsight.observability.logging import configure_logging, get_logger
@@ -76,10 +81,24 @@ def create_app(
         engine = create_database_engine(settings)
         app.state.database_check = lambda: check_database(engine)
         app.state.analytics = AnalyticsService(engine)
-        production_data_agent = DataAgent(
-            RuleBasedSQLGenerator(),
-            ReadOnlySQLExecutor(engine),
-        )
+        generator = RuleBasedSQLGenerator()
+        if settings.agent_provider == "openai":
+            from openai import OpenAI
+
+            primary = OpenAIQueryPlanner(
+                client=OpenAI(
+                    api_key=settings.openai_api_key.get_secret_value(),
+                    timeout=settings.openai_timeout_seconds,
+                ),
+                model=settings.openai_model,
+            )
+            planner = (
+                FallbackQueryPlanner(primary, RuleBasedQueryPlanner())
+                if settings.agent_fallback_enabled
+                else primary
+            )
+            generator = QueryPlanSQLGenerator(planner)
+        production_data_agent = DataAgent(generator, ReadOnlySQLExecutor(engine))
         app.state.data_agent = production_data_agent
         app.state.report_agent = MultiAgentCoordinator(production_data_agent)
         logger.info("database_engine_created", app_env=settings.app_env)
@@ -94,6 +113,17 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
+    application.state.agent_rate_limiter = FixedWindowRateLimiter()
+
+    def protect_agent_route(request: Request) -> None:
+        client_key = request.client.host if request.client else "unknown"
+        decision = request.app.state.agent_rate_limiter.check(client_key)
+        if not decision.allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="too many agent requests",
+                headers={"Retry-After": str(decision.retry_after)},
+            )
 
     @application.get("/", include_in_schema=False)
     def dashboard_redirect() -> RedirectResponse:
@@ -173,21 +203,27 @@ def create_app(
 
     @application.post("/agent/query")
     def agent_query(request: Request, payload: AgentQuestion):
+        protect_agent_route(request)
         if request.app.state.data_agent is None:
             raise HTTPException(status_code=503, detail="data agent unavailable")
         try:
             return request.app.state.data_agent.ask(payload.question)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except TimeoutError as exc:
+            raise HTTPException(status_code=503, detail="agent timed out") from exc
 
     @application.post("/agent/report")
     def agent_report(request: Request, payload: AgentQuestion):
+        protect_agent_route(request)
         if request.app.state.report_agent is None:
             raise HTTPException(status_code=503, detail="report agent unavailable")
         try:
             return request.app.state.report_agent.run(payload.question)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except TimeoutError as exc:
+            raise HTTPException(status_code=503, detail="agent timed out") from exc
 
     dashboard_directory = Path(__file__).with_name("dashboard")
     application.mount(

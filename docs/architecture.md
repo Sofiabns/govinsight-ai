@@ -12,6 +12,8 @@ flowchart LR
     GOLD --> VIEWS[Analytics views]
     VIEWS --> API[FastAPI]
     VIEWS --> AGENTS[Verified multiagent flow]
+    LLM[Optional OpenAI Responses API] --> PLAN[Typed QueryPlan]
+    PLAN --> AGENTS
     API --> DASH[Responsive dashboard]
     AGENTS --> API
 ```
@@ -41,9 +43,13 @@ flowchart LR
 - Agent SQL runs in read-only transactions, against an allow-list, with one statement, a row limit and
   a five-second timeout.
 - The critic gate rejects executive output without data evidence or when numbers change between stages.
+- An optional LLM can select only a typed intent, dimension, measure and filters; deterministic code
+  remains solely responsible for SQL generation.
 
 ## Runtime
 
 Docker Compose starts PostgreSQL 16 and the Python 3.12 API. Alembic migrations run before the API
 process. The web dashboard is packaged with the Python application and served at `/dashboard/`.
-GitHub Actions independently checks source quality, tests and the production image.
+GitHub Actions independently checks source quality, tests, dependencies and the production image.
+The production target keeps FastAPI and its static assets in one Vercel deployment, reads through a
+pooled least-privilege Neon connection, and performs migrations/imports only in a separate workflow.
