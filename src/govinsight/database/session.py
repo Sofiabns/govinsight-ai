@@ -9,6 +9,7 @@ def create_database_engine(settings: Settings) -> Engine:
         pool_pre_ping=True,
         pool_size=settings.postgres_pool_size,
         max_overflow=settings.postgres_max_overflow,
+        pool_recycle=settings.postgres_pool_recycle_seconds,
     )
 
 

@@ -27,7 +27,12 @@ def _value(row: dict[str, str], name: str) -> str | None:
 
 def to_pncp_record(row: dict[str, str]) -> dict[str, Any] | None:
     control_number = _value(row, "numero_controle_PNCP")
-    if control_number is None or not NATURAL_KEY.fullmatch(control_number):
+    publication_date = _value(row, "data_publicacao_pncp")
+    if (
+        control_number is None
+        or not NATURAL_KEY.fullmatch(control_number)
+        or publication_date is None
+    ):
         return None
     updated = _value(row, "data_atualizacao_pncp")
     return {
@@ -66,7 +71,7 @@ def to_pncp_record(row: dict[str, str]) -> dict[str, Any] | None:
         ),
         "tipoInstrumentoConvocatorioNome": _value(row, "tipo_instrumento_convocatorio_nome"),
         "dataInclusao": _value(row, "data_inclusao_pncp"),
-        "dataPublicacaoPncp": _value(row, "data_publicacao_pncp"),
+        "dataPublicacaoPncp": publication_date,
         "dataAtualizacao": updated,
         "dataAtualizacaoGlobal": updated,
         "dataAberturaProposta": _value(row, "data_abertura_proposta_pncp"),
@@ -84,11 +89,13 @@ def to_pncp_record(row: dict[str, str]) -> dict[str, Any] | None:
 
 def import_csv(path: Path, limit: int) -> dict[str, Any]:
     with path.open(encoding="utf-8-sig", newline="") as stream:
-        records = [
-            converted
-            for row in csv.DictReader(stream)
-            if (converted := to_pncp_record(row)) is not None
-        ][:limit]
+        records: list[dict[str, Any]] = []
+        for row in csv.DictReader(stream):
+            converted = to_pncp_record(row)
+            if converted is not None:
+                records.append(converted)
+            if len(records) >= limit:
+                break
     if not records:
         raise ValueError("CSV does not contain valid procurement records")
 
