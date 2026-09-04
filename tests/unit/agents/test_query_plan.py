@@ -3,7 +3,12 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
-from govinsight.agents.query_plan import QueryIntent, QueryPlan, QueryPlanCompiler
+from govinsight.agents.query_plan import (
+    QueryIntent,
+    QueryPlan,
+    QueryPlanCompiler,
+    RuleBasedQueryPlanner,
+)
 from govinsight.analytics import Measure, RankDimension
 
 
@@ -86,3 +91,29 @@ def test_ranking_compiler_has_stable_tie_breaker() -> None:
 
     assert "ORDER BY homologated_total DESC NULLS LAST, uf_sigla ASC" in query.sql
     assert query.sql.endswith("LIMIT 7")
+
+
+@pytest.mark.parametrize(
+    ("question", "intent", "dimension", "measure", "uf"),
+    [
+        ("Quanto foi homologado no RJ?", "summary", None, "homologated", "RJ"),
+        ("Qual estado lidera em valor estimado?", "ranking", "state", "estimated", None),
+        ("Me dê a mediana de SP", "distribution", None, "homologated", "SP"),
+        ("Qual foi o maior valor registrado?", "outliers", None, "homologated", None),
+        ("Como os gastos mudaram ao longo do tempo?", "monthly_trend", None, "homologated", None),
+        ("Quem mais compra?", "ranking", "organization", "homologated", None),
+    ],
+)
+def test_rules_planner_understands_natural_questions(
+    question: str,
+    intent: str,
+    dimension: str | None,
+    measure: str,
+    uf: str | None,
+) -> None:
+    plan = RuleBasedQueryPlanner().plan(question)
+
+    assert plan.intent == intent
+    assert plan.dimension == dimension
+    assert plan.measure == measure
+    assert plan.uf == uf

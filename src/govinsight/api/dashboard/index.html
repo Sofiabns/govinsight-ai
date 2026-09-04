@@ -26,8 +26,18 @@
             <p class="lede">Indicadores verificáveis para transformar dados governamentais em decisões mais claras.</p>
           </div>
           <div class="hero-meta">
-            <span>BASE OFICIAL</span><strong>Portal Nacional de Contratações Públicas</strong>
-            <span>ATUALIZAÇÃO</span><strong id="updated-at">—</strong>
+            <div class="coverage-card">
+              <span>COBERTURA ANALÍTICA</span>
+              <div class="coverage-numbers">
+                <div><strong id="hero-records">—</strong><small>processos oficiais</small></div>
+                <div><strong id="hero-period">—</strong><small id="hero-period-note">período carregado</small></div>
+              </div>
+              <p>Amostra federal demonstrativa, validada até a camada Gold.</p>
+            </div>
+            <div class="hero-source">
+              <span>BASE OFICIAL</span><strong>Portal Nacional de Contratações Públicas</strong>
+              <span>ATUALIZAÇÃO</span><strong id="updated-at">—</strong>
+            </div>
           </div>
         </section>
 
@@ -67,14 +77,14 @@
                 <input id="agent-question" name="question" minlength="3" maxlength="500" required placeholder="Ex.: quais modalidades concentram mais valor?" />
                 <button id="agent-submit" type="submit">Analisar <span aria-hidden="true">↗</span></button>
               </div>
-              <p class="scope-note">Escopo: resumo, rankings, evolução, distribuição e atípicos estatísticos.</p>
+              <p class="scope-note">Pergunte com suas palavras sobre totais, estados, órgãos, modalidades, evolução, distribuição ou valores atípicos.</p>
             </form>
             <div id="agent-loading" class="agent-loading" hidden aria-hidden="true"><span></span><span></span><span></span></div>
             <div id="agent-result" class="agent-result" role="status" aria-live="polite">
               <p class="agent-placeholder">Escolha uma pergunta sugerida ou escreva a sua.</p>
             </div>
             <details id="agent-evidence" class="evidence" hidden>
-              <summary>Ver evidências da resposta</summary>
+              <summary>Como esta resposta foi verificada</summary>
               <div id="evidence-content"></div>
             </details>
           </div>

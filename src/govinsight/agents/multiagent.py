@@ -29,6 +29,7 @@ class ExecutiveReport(BaseModel):
     question: str
     summary: str
     key_numbers: dict[str, Any]
+    data_points: list[dict[str, Any]]
     trends: list[str]
     opportunities: list[str]
     attention_points: list[str]
@@ -100,10 +101,31 @@ class ExecutiveReportAgent:
     ) -> ExecutiveReport:
         if not critic.approved:
             raise ValueError("critic rejected the report")
+        sql = data.evidence[0].sql.casefold() if data.evidence else ""
+        source = data.evidence[0].source if data.evidence else ""
+        if source.endswith("analytics_monthly") or ("group by" in sql and "month" in sql):
+            summary = (
+                "A evolução mensal foi organizada em ordem cronológica para o recorte solicitado."
+            )
+        elif source.startswith("gold.analytics_by_") or "group by" in sql:
+            summary = "O ranking mostra os grupos com maior valor dentro do recorte solicitado."
+        elif "percentile_cont" in sql and "cross join" in sql:
+            summary = (
+                "Os registros abaixo estão fora do intervalo estatístico esperado para o recorte."
+            )
+        elif "percentile_cont" in sql:
+            summary = (
+                "A distribuição abaixo resume centro, dispersão e extremos dos valores consultados."
+            )
+        else:
+            summary = (
+                "Os indicadores abaixo respondem ao recorte solicitado com dados da camada Gold."
+            )
         return ExecutiveReport(
             question=data.question,
-            summary="Análise concluída exclusivamente com dados disponíveis na camada Gold.",
+            summary=summary,
             key_numbers=statistics.metrics,
+            data_points=data.tables[:10],
             trends=statistics.findings,
             opportunities=insights,
             attention_points=["Anomalias estatísticas não representam indício de fraude."],

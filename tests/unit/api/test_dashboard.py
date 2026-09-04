@@ -16,3 +16,5 @@ def test_dashboard_is_available_from_application_root() -> None:
     assert response.text.count('class="prompt-chip"') == 4
     assert 'id="agent-result"' in response.text
     assert 'id="agent-evidence"' in response.text
+    assert 'id="hero-records"' in response.text
+    assert 'id="hero-period"' in response.text

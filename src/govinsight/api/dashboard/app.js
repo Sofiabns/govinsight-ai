@@ -16,6 +16,64 @@ async function get(path, params) {
 }
 
 const formatMoney = (value) => value == null ? "—" : money.format(Number(value));
+const metricLabels = {
+  procurement_count: "Processos analisados",
+  row_count: "Linhas retornadas",
+  sample_size: "Tamanho da amostra",
+  estimated_total: "Total estimado",
+  estimated_average: "Média estimada",
+  homologated_total: "Total homologado",
+  homologated_average: "Média homologada",
+  label: "Nome",
+  month: "Mês",
+  value: "Valor",
+  minimum: "Mínimo",
+  q1: "1º quartil",
+  median: "Mediana",
+  q3: "3º quartil",
+  maximum: "Máximo",
+  mean: "Média",
+  numero_controle_pncp: "Processo PNCP",
+};
+const evidenceLabels = {
+  analytics_summary: "Resumo analítico",
+  analytics_by_organization: "Ranking por órgão",
+  analytics_by_state: "Ranking por estado",
+  analytics_by_modality: "Ranking por modalidade",
+  analytics_monthly: "Série histórica mensal",
+  analytics_procurement_base: "Base analítica consolidada",
+};
+
+function formatAgentMetric(label, value) {
+  if (value == null) return "—";
+  if (["value", "minimum", "q1", "median", "q3", "maximum", "mean"].includes(label)
+      || label.endsWith("_total") || label.endsWith("_average")) return formatMoney(value);
+  if (label.endsWith("_count") || label === "row_count" || label === "sample_size") {
+    return number.format(Number(value));
+  }
+  return String(value);
+}
+
+function renderDataPoints(rows) {
+  if (!rows || rows.length <= 1) return null;
+  const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const wrapper = make("div", "answer-table-wrap");
+  wrapper.append(make("h4", "", "Principais resultados"));
+  const table = make("table", "answer-table");
+  const head = make("thead", "");
+  const headerRow = make("tr", "");
+  keys.forEach((key) => headerRow.append(make("th", "", metricLabels[key] || key.replaceAll("_", " "))));
+  head.append(headerRow);
+  const body = make("tbody", "");
+  rows.forEach((row) => {
+    const tr = make("tr", "");
+    keys.forEach((key) => tr.append(make("td", "", formatAgentMetric(key, row[key]))));
+    body.append(tr);
+  });
+  table.append(head, body);
+  wrapper.append(table);
+  return wrapper;
+}
 
 function renderTrend(rows, measure) {
   const target = $("trend-chart");
@@ -71,6 +129,16 @@ async function loadDashboard() {
     renderTrend(trends, measure);
     renderRanking(ranking);
     renderOutliers(outliers);
+    $("hero-records").textContent = number.format(summary.procurement_count);
+    $("hero-period").textContent = `${number.format(trends.length)} meses`;
+    if (trends.length) {
+      const compactMonth = (value) => new Date(`${value}T12:00:00`).toLocaleDateString(
+        "pt-BR", { month: "short", year: "numeric" },
+      );
+      $("hero-period-note").textContent = `${compactMonth(trends[0].month)} — ${compactMonth(trends.at(-1).month)}`;
+    } else {
+      $("hero-period-note").textContent = "sem período no recorte";
+    }
     $("updated-at").textContent = new Date().toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" });
     $("status-text").textContent = "Dados disponíveis";
     document.querySelector(".status").className = "status ready";
@@ -99,10 +167,16 @@ function renderAgentReport(report) {
   const metrics = make("div", "report-metrics");
   Object.entries(report.key_numbers || {}).forEach(([label, value]) => {
     const tile = make("div", "report-metric");
-    tile.append(make("span", "", label.replaceAll("_", " ")), make("strong", "", value ?? "—"));
+    const readableLabel = metricLabels[label] || label.replaceAll("_", " ");
+    tile.append(
+      make("span", "", readableLabel),
+      make("strong", "", formatAgentMetric(label, value)),
+    );
     metrics.append(tile);
   });
   if (metrics.childElementCount) target.append(metrics);
+  const dataPoints = renderDataPoints(report.data_points);
+  if (dataPoints) target.append(dataPoints);
 
   const notes = [...(report.trends || []), ...(report.opportunities || [])];
   if (notes.length) {
@@ -120,10 +194,24 @@ function renderAgentReport(report) {
   const evidenceContent = $("evidence-content");
   evidenceContent.replaceChildren();
   (report.evidence || []).forEach((item) => {
-    evidenceContent.append(
-      make("p", "", `Fonte: ${item.source} · ${item.row_count} linha(s)`),
-      make("pre", "", item.sql),
-    );
+    const card = make("article", "evidence-card");
+    const header = make("div", "evidence-header");
+    const title = make("div", "");
+    title.append(make("span", "evidence-kicker", "FONTE VALIDADA"));
+    const sourceKey = item.source.split(".").at(-1);
+    title.append(make("strong", "", evidenceLabels[sourceKey] || sourceKey.replaceAll("_", " ")));
+    header.append(title, make("span", "evidence-count", `${number.format(item.row_count)} linha(s)`));
+
+    const checks = make("div", "evidence-checks");
+    ["Camada Gold", "Somente leitura", "Consulta limitada"].forEach((label) => {
+      checks.append(make("span", "evidence-check", `✓ ${label}`));
+    });
+
+    const technical = make("details", "query-details");
+    technical.append(make("summary", "", "Detalhes técnicos da consulta"));
+    technical.append(make("pre", "", item.sql));
+    card.append(header, checks, technical);
+    evidenceContent.append(card);
   });
   evidence.hidden = !(report.evidence || []).length;
 }
