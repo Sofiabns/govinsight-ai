@@ -1,9 +1,11 @@
+from collections.abc import Iterable
+from datetime import date, timedelta
 from typing import Protocol
 
 import structlog
 
 from govinsight.analytics import AnalyticsSummary
-from govinsight.extract.pncp.models import ProcurementQuery
+from govinsight.extract.pncp.models import ProcurementQuery, QueryMode
 from govinsight.orchestration.models import PipelineRunResult, PipelineStageError
 from govinsight.quality import DataQualityRunResult, QualityRunStatus
 from govinsight.raw import IngestionResult
@@ -11,6 +13,24 @@ from govinsight.transform import TransformationResult
 from govinsight.warehouse import WarehouseLoadResult
 
 logger = structlog.get_logger(__name__)
+
+
+def build_scheduled_queries(
+    modality_codes: Iterable[int], *, today: date, lookback_days: int = 7
+) -> list[ProcurementQuery]:
+    if lookback_days < 1:
+        raise ValueError("lookback_days must be positive")
+    start_date = today - timedelta(days=lookback_days - 1)
+    return [
+        ProcurementQuery(
+            start_date=start_date,
+            end_date=today,
+            modality_code=code,
+            mode=QueryMode.UPDATE,
+            page_size=50,
+        )
+        for code in sorted(set(modality_codes))
+    ]
 
 
 class RawStage(Protocol):
@@ -99,4 +119,4 @@ class PipelineService:
         )
 
 
-__all__ = ["PipelineService"]
+__all__ = ["PipelineService", "build_scheduled_queries"]

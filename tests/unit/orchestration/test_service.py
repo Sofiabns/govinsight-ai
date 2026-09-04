@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+import govinsight.orchestration as orchestration
 from govinsight.analytics import AnalyticsSummary
 from govinsight.extract.pncp.models import ProcurementQuery
 from govinsight.orchestration import PipelineService, PipelineStageError
@@ -33,6 +34,20 @@ def _summary() -> AnalyticsSummary:
         homologated_total=Decimal("90"),
         homologated_average=Decimal("90"),
     )
+
+
+def test_scheduled_queries_cover_each_active_modality_with_update_overlap() -> None:
+    build = getattr(orchestration, "build_scheduled_queries", None)
+    assert callable(build), "orchestration must build scheduled PNCP queries"
+
+    queries = build([8, 6, 8], today=date(2026, 9, 4), lookback_days=7)
+
+    assert [(query.modality_code, query.start_date, query.end_date) for query in queries] == [
+        (6, date(2026, 8, 29), date(2026, 9, 4)),
+        (8, date(2026, 8, 29), date(2026, 9, 4)),
+    ]
+    assert all(query.mode.value == "atualizacao" for query in queries)
+    assert all(query.page_size == 50 for query in queries)
 
 
 def test_pipeline_runs_every_stage_in_order_until_analytics() -> None:

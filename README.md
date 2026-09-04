@@ -74,6 +74,8 @@ $env:GOVINSIGHT_POSTGRES_HOST = "127.0.0.1"
 - **Analytics:** KPIs, rankings, séries mensais, distribuição e método IQR.
 - **Agentes:** analista de dados, estatística, negócio, qualidade, crítico e relatório executivo.
 - **Produção:** FastAPI serverless no Vercel, PostgreSQL gerenciado no Neon e carga via GitHub Actions.
+- **Atualização automática:** toda segunda-feira, o GitHub Actions consulta as modalidades ativas
+  e reabre os últimos sete dias no endpoint de atualizações do PNCP antes de publicar a nova Gold.
 
 As escolhas e os limites estão detalhados em [arquitetura](docs/architecture.md),
 [agentes](docs/agents.md), [dicionário de dados](docs/data_dictionary.md) e
@@ -95,6 +97,10 @@ obtido do [repositório oficial de dados](https://repositorio.dados.gov.br/seges
 Ela serve para demonstrar a arquitetura e **não representa cobertura nacional completa**. Valores
 atípicos são sinais estatísticos pelo método IQR; **não indicam fraude ou irregularidade**. Valores
 estimados e homologados são mantidos separados, e valor homologado não é valor contratado.
+
+Quando o repositório estiver no GitHub, cadastre o segredo
+`GOVINSIGHT_DATABASE_ADMIN_DSN` com a conexão SSL do Neon. O workflow
+`Sync recent PNCP data` poderá ser executado manualmente e também rodará semanalmente.
 
 ## Desenvolvimento
 

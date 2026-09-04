@@ -340,6 +340,39 @@ def test_get_procurement_returns_detail_dictionary() -> None:
     assert result == payload
 
 
+def test_list_active_modalities_uses_official_domain_endpoint() -> None:
+    payload = [
+        {
+            "id": 6,
+            "nome": "Pregão - Eletrônico",
+            "descricao": "Aquisição de bens e serviços comuns",
+            "dataInclusao": "2021-01-01T00:00:00",
+            "dataAtualizacao": "2025-01-01T00:00:00",
+            "statusAtivo": True,
+        },
+        {
+            "id": 8,
+            "nome": "Dispensa de Licitação",
+            "descricao": "Contratação direta",
+            "dataInclusao": "2021-01-01T00:00:00",
+            "dataAtualizacao": "2025-01-01T00:00:00",
+            "statusAtivo": True,
+        },
+    ]
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.path == "/api/pncp/v1/modalidades"
+        assert request.url.params["statusAtivo"] == "true"
+        return httpx2.Response(200, json=payload)
+
+    with client_for(handler) as client:
+        method = getattr(client, "list_active_modalities", None)
+        assert callable(method), "PNCPClient must expose active modalities"
+        result = method()
+
+    assert result == [6, 8]
+
+
 @pytest.mark.parametrize(
     ("cnpj", "year", "sequence"),
     [("123", 2025, 1), ("83551549000100", 2020, 1), ("83551549000100", 2025, 0)],
