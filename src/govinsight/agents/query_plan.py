@@ -227,9 +227,33 @@ class RuleBasedQueryPlanner:
     """Fast, auditable baseline for the public demo and provider fallback."""
 
     _brazilian_ufs: ClassVar[set[str]] = {
-        "ac", "al", "ap", "am", "ba", "ce", "df", "es", "go", "ma", "mt",
-        "ms", "mg", "pa", "pb", "pr", "pe", "pi", "rj", "rn", "rs", "ro",
-        "rr", "sc", "sp", "se", "to",
+        "ac",
+        "al",
+        "ap",
+        "am",
+        "ba",
+        "ce",
+        "df",
+        "es",
+        "go",
+        "ma",
+        "mt",
+        "ms",
+        "mg",
+        "pa",
+        "pb",
+        "pr",
+        "pe",
+        "pi",
+        "rj",
+        "rn",
+        "rs",
+        "ro",
+        "rr",
+        "sc",
+        "sp",
+        "se",
+        "to",
     }
 
     def plan(self, question: str) -> QueryPlan:
@@ -249,8 +273,14 @@ class RuleBasedQueryPlanner:
             "uf": uf,
         }
         outlier_terms = (
-            "atíp", "atip", "outlier", "fora do padrão", "maior valor",
-            "maior compra", "maiores compras", "valores extremos",
+            "atíp",
+            "atip",
+            "outlier",
+            "fora do padrão",
+            "maior valor",
+            "maior compra",
+            "maiores compras",
+            "valores extremos",
         )
         if any(word in normalized for word in outlier_terms):
             return QueryPlan(intent=QueryIntent.OUTLIERS, **filters)
@@ -258,8 +288,16 @@ class RuleBasedQueryPlanner:
         if any(word in normalized for word in distribution_terms):
             return QueryPlan(intent=QueryIntent.DISTRIBUTION, **filters)
         trend_terms = (
-            "mensal", "mês", "evolução", "tendência", "ao longo do tempo",
-            "mudaram", "variação", "variacao", "histórico", "historico",
+            "mensal",
+            "mês",
+            "evolução",
+            "tendência",
+            "ao longo do tempo",
+            "mudaram",
+            "variação",
+            "variacao",
+            "histórico",
+            "historico",
         )
         if any(word in normalized for word in trend_terms):
             return QueryPlan(intent=QueryIntent.MONTHLY_TREND, **filters)

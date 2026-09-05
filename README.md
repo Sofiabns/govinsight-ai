@@ -13,8 +13,8 @@ API, dashboard responsivo e um fluxo de agentes que só publica respostas apoiad
 
 ## Evidências rápidas
 
-- **4.507 contratações oficiais** carregadas na demonstração local, sem CSV ou banco no Git.
-- **19 meses de publicação** disponíveis no recorte federal da amostra.
+- **Milhares de contratações oficiais** carregadas na demonstração, sem CSV ou banco no Git.
+- Cobertura e período calculados dinamicamente a partir do recorte disponível no banco.
 - **30 casos versionados** no benchmark do agente, incluindo filtros e solicitações adversariais.
 - SQL analítico **parametrizado, somente leitura, limitado a 200 linhas e 5 segundos**.
 - Pipeline com reconciliação, linhagem, quarentena e bloqueio da Gold quando a qualidade falha.
@@ -77,6 +77,9 @@ $env:GOVINSIGHT_POSTGRES_HOST = "127.0.0.1"
 - **Atualização automática:** toda segunda-feira, o GitHub Actions consulta as modalidades ativas
   e reabre os últimos sete dias no endpoint de atualizações do PNCP antes de publicar a nova Gold.
 
+O guia [Publicação gratuita](docs/deployment.md) documenta o caminho completo entre GitHub, Neon,
+GitHub Actions e Vercel, incluindo a separação de credenciais por privilégio.
+
 As escolhas e os limites estão detalhados em [arquitetura](docs/architecture.md),
 [agentes](docs/agents.md), [dicionário de dados](docs/data_dictionary.md) e
 [análise da fonte](docs/data_source_analysis.md).
@@ -92,11 +95,12 @@ As escolhas e os limites estão detalhados em [arquitetura](docs/architecture.md
 
 ## Dados e limitações
 
-A demonstração usa uma amostra de compras federais do export oficial Compras.gov/PNCP de 2025,
-obtido do [repositório oficial de dados](https://repositorio.dados.gov.br/seges/comprasgov/anual/2025/).
-Ela serve para demonstrar a arquitetura e **não representa cobertura nacional completa**. Valores
-atípicos são sinais estatísticos pelo método IQR; **não indicam fraude ou irregularidade**. Valores
-estimados e homologados são mantidos separados, e valor homologado não é valor contratado.
+A demonstração usa uma amostra do snapshot anual mais recente do Compras.gov/PNCP — atualmente
+2026 — obtido do [repositório oficial de dados](https://repositorio.dados.gov.br/seges/comprasgov/anual/).
+Após a carga inicial, o workflow incremental consulta a API do PNCP semanalmente. O recorte serve
+para demonstrar a arquitetura e **não representa cobertura nacional completa**. Valores atípicos
+são sinais estatísticos pelo método IQR; **não indicam fraude ou irregularidade**. Valores estimados
+e homologados são mantidos separados, e valor homologado não é valor contratado.
 
 Quando o repositório estiver no GitHub, cadastre o segredo
 `GOVINSIGHT_DATABASE_ADMIN_DSN` com a conexão SSL do Neon. O workflow
