@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      GOVINSIGHT_DATABASE_DSN: ${{ secrets.GOVINSIGHT_DATABASE_ADMIN_DSN }}
+      GOVINSIGHT_DATABASE_DSN: ${{ secrets.GOVINSIGHT_DATABASE_ADMIN_DSN_V2 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

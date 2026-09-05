@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 45
     env:
       GOVINSIGHT_APP_ENV: production
-      GOVINSIGHT_DATABASE_DSN: ${{ secrets.GOVINSIGHT_DATABASE_ADMIN_DSN }}
+      GOVINSIGHT_DATABASE_DSN: ${{ secrets.GOVINSIGHT_DATABASE_ADMIN_DSN_V2 }}
       LOOKBACK_DAYS: ${{ inputs.lookback_days || '7' }}
     steps:
       - uses: actions/checkout@v4
