@@ -118,16 +118,8 @@ Configurações usam o prefixo `GOVINSIGHT_`; consulte [.env.example](.env.examp
 `GOVINSIGHT_AGENT_PROVIDER=rules`. Para OpenAI, configure também a chave e o modelo em um gerenciador
 de segredos — nunca no código.
 
-## Pontos para entrevista
-
-- Por que um LLM gera um plano tipado em vez de SQL.
-- Como watermarks e hashes tornam reprocessamento e retomada seguros.
-- Como a reconciliação impede que uma Gold inconsistente seja publicada.
-- Por que ETL fica fora do runtime serverless e usa uma conexão administrativa separada.
-- Quais trade-offs permitem uma demonstração pública de baixo custo sem exagerar o escopo dos dados.
-
 ## Autoria
 
-Projeto desenvolvido por **Sofia** — [sofiabns06@gmail.com](mailto:sofiabns06@gmail.com).
+Projeto desenvolvido por **Sofia**.
 
 Licenciado sob a [MIT License](LICENSE).
