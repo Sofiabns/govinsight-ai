@@ -41,7 +41,7 @@ jobs:
           cache: pip
       - name: Install project
         run: |
-          python -m pip install -r requirements.lock
+          python -m pip install -r requirements-lock.txt
           python -m pip install --no-deps -e .
       - name: Lint
         run: python -m ruff check .
@@ -52,7 +52,7 @@ jobs:
       - name: Agent safety benchmark
         run: python -m govinsight.agents.evaluation tests/fixtures/agents/agent_evaluation.json
       - name: Dependency audit
-        run: python -m pip_audit -r requirements.lock
+        run: python -m pip_audit -r requirements-lock.txt
       - name: Build wheel
         run: python -m pip wheel --no-deps . --wheel-dir dist
 
