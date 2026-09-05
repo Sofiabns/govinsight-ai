@@ -45,7 +45,7 @@ jobs:
         run: python -m govinsight.orchestration.scheduled --lookback-days "$LOOKBACK_DAYS" | tee pncp-sync.log
       - name: Publish non-sensitive execution log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pncp-sync-log-${{ github.run_id }}
           path: pncp-sync.log
