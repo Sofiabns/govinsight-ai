@@ -23,7 +23,7 @@ jobs:
       GOVINSIGHT_DATABASE_DSN: ${{ secrets.GOVINSIGHT_DATABASE_ADMIN_DSN }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
