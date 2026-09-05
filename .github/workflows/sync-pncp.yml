@@ -26,7 +26,7 @@ jobs:
       GOVINSIGHT_DATABASE_DSN: ${{ secrets.GOVINSIGHT_DATABASE_ADMIN_DSN }}
       LOOKBACK_DAYS: ${{ inputs.lookback_days || '7' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
